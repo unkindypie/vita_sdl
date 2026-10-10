@@ -163,22 +163,22 @@ void akAPI_Init()
 
                     if (t == 'number')
                     {
-                        akSetI32(ret|0,4);
+                        akSetI32(ret|0,1);
                         akSetStr(desc,8);
                     }
                     else
                     if (t == 'string')
                     {
-                        akSetI32(story_id,4);
+                        akSetI32(story_id,1);
                         akSetStr(ret,8);
                     }
                     else
-                    if (t == 'array')
+                    if (Array.isArray(ret))
                     {
                         if (typeof ret[0] == 'number')
-                            akSetI32(ret[0]|4);
+                            akSetI32(ret[0]|0,1);
                         else
-                            akSetI32(story_id,4);
+                            akSetI32(story_id,1);
 
                         if (typeof ret[1] == 'string')
                             akSetStr(ret[1],8);
@@ -186,12 +186,12 @@ void akAPI_Init()
                             akSetStr(desc,8);
                     }
                     else
-                    if (t == 'object')
+                    if (t == 'object' && ret != null)
                     {
                         if (typeof ret.story_id == 'number')
-                            akSetI32(ret.story_id|4);
+                            akSetI32(ret.story_id|0,1);
                         else
-                            akSetI32(story_id,4);
+                            akSetI32(story_id,1);
 
                         if (typeof ret.desc == 'string')
                             akSetStr(ret.desc,8);
@@ -200,7 +200,7 @@ void akAPI_Init()
                     }
                     else
                     {
-                        akSetI32(story_id,4);
+                        akSetI32(story_id,1);
                         akSetStr(desc,8);
                     }
                     break;
@@ -219,6 +219,7 @@ void akAPI_Init()
 
 bool akAPI_CheckCB(int id)
 {
+    if (!akAPI_Buff || id < 0 || id > 255) return false;
     int bit = 1<<(id&0x7);
     uint8_t* ptr = (uint8_t*)akAPI_Buff + 65536 + (id>>3);
     return (*ptr & bit) != 0;
@@ -274,7 +275,7 @@ bool akAPI_OnItem(int action, int story_id, int kind, int subkind, int weight, c
     if (allowed)
         *allowed = *(int*)akAPI_Buff != 0;
     if (out_story_id)
-        *out_story_id = *(int*)akAPI_Buff ? *((int*)akAPI_Buff+4) : story_id;
+        *out_story_id = *(int*)akAPI_Buff ? *((int*)akAPI_Buff+1) : story_id;
     if (out_desc)
         *out_desc = *(int*)akAPI_Buff ? (char*)akAPI_Buff+8 : desc;
 
@@ -357,8 +358,15 @@ extern "C" void akAPI_Call(int id)
         case 7:
         // setName: function(str) { akSetStr(str,0); akAPI_Call(7); },
         {
-            strncpy(game->player.name,(char*)akAPI_Buff,128);
-            ConvertToCP437(game->player.name_cp437,(char*)akAPI_Buff,32);
+            const char* name = (char*)akAPI_Buff;
+            size_t count = strlen(name);
+            if (count > 127) {
+                count = 127;
+                while (count && ((unsigned char)name[count] & 0xC0) == 0x80) --count;
+            }
+            memcpy(game->player.name, name, count);
+            game->player.name[count] = 0;
+            ConvertToCP437(game->player.name_cp437,game->player.name,32);
             game->player.name_cp437[31] = 0;
             break;
         }

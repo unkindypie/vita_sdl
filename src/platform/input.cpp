@@ -1,6 +1,7 @@
 #include "platform/input.h"
 #include "platform.h"
 namespace port {
+int engine_touch_contact(int slot) { return slot >= 0 && slot < 3 ? slot + 1 : -1; }
 int engine_key(SDL_Keycode key) {
     if (key >= SDLK_a && key <= SDLK_z) return A3D_A + static_cast<int>(key - SDLK_a);
     switch (key) {
@@ -11,6 +12,9 @@ int engine_key(SDL_Keycode key) {
         case SDLK_SPACE: return A3D_SPACE;
         case SDLK_RETURN: return A3D_ENTER;
         case SDLK_BACKSPACE: return A3D_BACKSPACE;
+        case SDLK_TAB: return A3D_TAB;
+        case SDLK_F1: return A3D_F1;
+        case SDLK_DELETE: return A3D_DELETE;
         case SDLK_ESCAPE: return A3D_ESCAPE;
         case SDLK_LSHIFT: return A3D_LSHIFT;
         case SDLK_RSHIFT: return A3D_RSHIFT;
@@ -25,7 +29,7 @@ int engine_button(Uint8 button) {
         case SDL_CONTROLLER_BUTTON_Y: return 3;
         case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return -1;
         case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return -1;
-        case SDL_CONTROLLER_BUTTON_BACK: return -1;
+        case SDL_CONTROLLER_BUTTON_BACK: return 6;
         case SDL_CONTROLLER_BUTTON_START: return 9;
         case SDL_CONTROLLER_BUTTON_DPAD_UP: return 11;
         case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return 12;

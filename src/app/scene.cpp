@@ -2,6 +2,8 @@
 #include "enemygen.h"
 #include "inventory.h"
 #include "platform/engine_hooks.h"
+#include "scripting/runtime.h"
+#include "audio.h"
 #include <cstdio>
 #include <fstream>
 extern char base_path[1024];
@@ -73,12 +75,17 @@ bool load_scene(const std::string& root, uint64_t stamp, std::string& error) {
     InitGame(game, 55, pos, 45, 0, light, stamp);
     log_stage("game.initialized");
     game->main_menu = false;
-    game->show_buts = false;
-    std::printf("SCENE_READY map=game_map_y8.a3d patches=%d meshes=%d scripting=disabled audio=disabled network=offline\n",
+    game->show_buts = true;
+    if (!start_scripting(error) || !load_script(root + "/scripts/startup.js", error)) {
+        close_scene(); return false;
+    }
+    std::printf("SCENE_READY map=game_map_y8.a3d patches=%d meshes=%d scripting=QuickJS audio=SDL network=offline\n",
                 GetTerrainPatches(terrain), mesh_count);
     return true;
 }
 void close_scene() {
+    FreeAudio();
+    stop_scripting();
     if (game) { FreeGame(game); DeleteGame(game); game = nullptr; }
     if (world) { DeleteWorld(world); world = nullptr; }
     if (terrain) { DeleteTerrain(terrain); terrain = nullptr; }

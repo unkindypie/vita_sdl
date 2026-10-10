@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Original port icon; vector source is the editable authority. -->
+  <rect width="128" height="128" rx="18" fill="#171c2b"/>
+  <path d="M16 75 64 47 112 75 64 103Z" fill="#76b83b"/>
+  <path d="M16 75 64 103 64 115 16 87Z" fill="#38742e"/>
+  <path d="M64 103 112 75 112 87 64 115Z" fill="#285b30"/>
+  <path d="M48 63 64 53 80 63 64 73Z" fill="#d6d7dc"/>
+  <path d="M48 63 64 73 64 93 48 83Z" fill="#868b9b"/>
+  <path d="M64 73 80 63 80 83 64 93Z" fill="#b0b3bf"/>
+  <path fill-rule="evenodd" d="M20 20h24v30h-6V38H26v12h-6Zm6 6v6h12v-6Zm28-6h24v30H54v-6h18v-6H60v-6h12v-6H54Zm34 0h16l6 6v18l-6 6H88Zm6 6v18h8l2-2V28l-2-2Z" fill="#f4db73"/>
+</svg>

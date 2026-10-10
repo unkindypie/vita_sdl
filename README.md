@@ -1,10 +1,12 @@
-# Asciicker Vita / Linux Preview
+# Asciicker Vita / Linux
 
-A shared C++17/SDL2 port of Asciicker's game runtime. The current Phase 2 preview
+A shared C++17/SDL2 port of Asciicker's offline game runtime. Version 0.3
 loads the real upstream map and renders its terrain, sprites, and characters
 through the original CPU ASCII renderer with an SDL2 streaming-texture presenter.
-It supports movement, camera, collision, and jump. Full game scripting, audio,
-networking, editor, and gameplay parity are deferred.
+It supports movement, camera, collision, combat, inventory, menus, SDL audio,
+and the upstream JavaScript `ak` API through QuickJS **2026-06-04**. Offline
+parity is exercised on Linux and in the ARM/Vita binary through Vita3K. This
+is a port of the upstream sandbox, not a new campaign or multiplayer game.
 
 ## Build and run
 
@@ -21,8 +23,16 @@ make test-asan   # repeat host tests with AddressSanitizer
 make smoke       # desktop smoke, movement/camera checks, build/linux/smoke.bmp
 make vita        # build/vita/vita_sdl2.vpk
 make verify-vpk  # build Vita and check packaged manifest entries
-make vita3k-smoke VITA3K=/path/to/Vita3K # finite smoke of ARM/Vita build
+make vita3k-setup # download/check pinned emulator (Linux x86_64)
+make vita3k-smoke # automatic emulator setup, finite smoke of ARM/Vita build
 make clean       # remove generated build output
+```
+
+Non-destructive fresh build checks:
+
+```sh
+make test LINUX_BUILD_DIR=build/linux-fresh CMAKE_ARGS=-DCMAKE_BUILD_TYPE=Release
+make verify-vpk VITA_BUILD_DIR=build/vita-fresh
 ```
 
 Additional diagnostic runs:
@@ -30,8 +40,10 @@ Additional diagnostic runs:
 ```sh
 make run ARGS='--smoke --frames 240 --screenshot build/linux/smoke.bmp'
 make run ARGS='--probe-js'
+make run ARGS='--smoke --frames 600 --verify-gameplay'
+make run ARGS='--script assets/scripts/startup.js'
 make run ARGS='--smoke --seconds 900'
-SDL_VIDEODRIVER=dummy build/linux/vita_sdl2 --smoke --frames 240
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/linux/vita_sdl2 --smoke --frames 240
 ```
 
 Use `--assets DIR` and `--manifest FILE` to override assets. Default Linux paths
@@ -51,9 +63,10 @@ real-device performance measurements.
 ## Controls
 
 Move with WASD/arrows, left stick, or D-pad. Rotate with Q/E, L/R shoulders, or
-right-stick X. Jump with Space or Circle/SDL B. Exit with Escape/window close or
-Select/SDL Back. Start exposes upstream inventory behavior, whose full parity
-is deferred. See [controls](docs/CONTROLS.md).
+right-stick X. Jump with Space or Circle/SDL B. Exit with Ctrl+Q/window close
+or the Exit menu. F1/Select opens the menu; I/Start opens
+inventory. Tab opens chat; a leading backslash evaluates JavaScript. On Vita,
+Select+Start opens the controller text keyboard. See [controls](docs/CONTROLS.md).
 
 ## Development documents
 
@@ -64,7 +77,11 @@ is deferred. See [controls](docs/CONTROLS.md).
 - [Validation results](docs/VALIDATION.md)
 - [Vita3K setup and smoke checks](docs/VITA3K.md)
 - [Dependency revisions and local patches](third_party/README.md)
+- [Offline feature parity and limitations](docs/PARITY.md)
+- [JavaScript embedding and console](docs/SCRIPTING.md)
+- [Audio playback and failure behavior](docs/AUDIO.md)
 
 Upstream: https://github.com/msokalski/asciicker. Preserve its MIT notice and
-embedded third-party notices when distributing source/binaries. Asset attribution
-review and final app identity are required before a public release.
+embedded third-party notices when distributing source/binaries. The VPK contains
+an original icon and license/provenance notices. Real-device acceptance and
+independent asset-rights clearance are not established by emulator tests.

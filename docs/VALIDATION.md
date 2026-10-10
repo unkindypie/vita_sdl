@@ -1,7 +1,113 @@
-# Phase 0–2 validation
+# Validation — offline runtime 0.3
 
-Recorded 2026-10-10. Linux runtime checks replace Vita runtime acceptance for
-this implementation pass, as requested. No Phase 3 work was started.
+Recorded 2026-10-10. The latest request authorized all offline phases. Linux
+and Vita3K substitute for device checks; real hardware acceptance remains open.
+
+## Current commands and outcomes
+
+Project-managed emulator setup (2026-10-10): `make vita3k-setup` fetched
+official asset 625596737 into `build/tools/vita3k/` and passed SHA-256 validation.
+A subsequent setup reused the installed emulator without downloading. A missing
+explicit binary override failed with an actionable message; shell syntax check
+passed. Plain `make vita3k-smoke` (no `VITA3K` override or `/tmp` dependency)
+built the Vita VPK and completed 600 guest frames with `GAMEPLAY_CHECKS_OK`,
+`SMOKE_OK`, and `SHUTDOWN_OK`. Generated tool files are ignored by Git.
+
+| Check | Recorded result |
+| --- | --- |
+| `make test` | 4/4 pass: presenter/input/probe and repeated real-scene/gameplay checks; SDL parity launch; missing assets; unavailable-audio fallback |
+| `make test-asan` | Same 4/4 pass, no sanitizer failure, including repeated JS/world/audio ownership teardown |
+| `make test LINUX_BUILD_DIR=build/linux-fresh CMAKE_ARGS=-DCMAKE_BUILD_TYPE=Release` | Fresh-directory native Release build/tests pass |
+| `make verify-vpk VITA_BUILD_DIR=build/vita-fresh` | Fresh-directory Vita Release build and packaging pass |
+| `make verify-vpk` | 257 required entries: 249 assets plus metadata/icon/manifest/notices; app “Asciicker Vita”, ASCIIV001, 00.30, approximately 5.1 MiB |
+| `make run ARGS='--smoke --frames 600 --verify-gameplay --screenshot build/linux/parity-final.bmp'` | `NEW_GAME_OK`, `PARITY_OK`, `GAMEPLAY_CHECKS_OK`, all movement/camera/grounded checks, `SHUTDOWN_OK` |
+| `make vita3k-smoke VITA3K=/path/to/Vita3K VITA3K_DIR=build/vita3k-final` | Fresh isolated install, then same full guest parity and clean shutdown; not merely host process success |
+
+Current guest parity run: 600 frames, all movement/camera/grounded checks true;
+449 script calls, 8 **intentionally injected** exceptions, 134,150 bytes of
+runtime-accounted JS memory, zero dropped audio commands and 673 nonzero PCM
+callbacks. Controller tests cover inventory equip/unequip, attacks/crossbow,
+console submission, Continue and perspective/blood/mute menu actions. Real
+melee damage, item ownership/script veto/mutation, New Game JS-state reset,
+bounds/Unicode/stack/OOM/time-limit recovery and config replacement/rejection
+are assertions, not inferred from a scene launch. See `docs/PARITY.md`.
+
+The intrusive parity run's 1,347.98 ms worst frame includes full world/runtime/
+sample reload. Deliberate failing scripts run after the profiled render loop.
+Do not use these correctness runs as ordinary-play performance benchmarks.
+
+## JavaScript performance comparison
+
+Default startup installs a real lightweight per-frame callback. Matched smoke
+input, 120x68 grid, optimized core/presenter, SDL audio on; no parity harness.
+Smoke initialization now uses a fixed timestamp/seed for repeatable NPC layout.
+Displayed “60 FPS” is synthetic simulation time, not measured throughput.
+
+| Target/run | Total median / p95 ms | JS median / p95 ms |
+| --- | --- | --- |
+| Linux Wayland/OpenGL, JS on, 600 frames (two later runs) | 6.16–6.30 / 7.83–8.37 | 0.007–0.010 / 0.019–0.020 |
+| Same Linux JS off | 6.17–6.25 / 8.10 | 0 / 0 |
+| Vita3K OpenGL, JS on, 1,200 frames | 27.97 / 34.03 | 0.020 / 0.046 |
+| Same Vita3K JS off | 28.17 / 34.66 | 0 / 0 |
+
+Linux timings are host-load-sensitive; an earlier pair overlapping compilation
+was slower and is excluded from the representative ranges. Small total-time
+differences do not imply JS makes rendering faster. Normal JS runs report
+**zero script errors**; Vita3K JS-on reports 1,203 calls, 131,390 bytes of
+runtime-accounted memory and zero audio drops. Default callback cost is below
+observed frame-to-frame variation, not a guarantee for arbitrary future scripts.
+
+Vita3K JS-on median scene work is 23.13 ms, glyph conversion 4.41 ms, upload
+0.26 ms, present 0.06 ms. Scene timing includes JS. Startup maximum 102.98 ms
+is recorded, not hidden. Scene work still dominates; preserve the optimized
+CPU reference presenter rather than starting an unproven GPU renderer rewrite.
+Neither emulator p95 meets a strict 33.33 ms frame budget; these are **not**
+real Vita FPS/clock/memory measurements or stable-30-FPS acceptance.
+
+## JS/audio Linux soak
+
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/linux/vita_sdl2 --smoke --seconds 900`
+completed **53,986 frames**, `SMOKE_OK` and clean shutdown. It uses a synthetic
+movement/camera burst then an idle scene, not 15 minutes of manual exploration.
+Zero script errors, zero audio queue drops, 38,997 nonzero PCM callbacks, final
+JS memory accounting 154,562 bytes. RSS: 51,068 KiB startup, 51,272 at 60 s,
+51,324 at 840 s: **52 KiB drift after the first minute**, not proof of no leak.
+
+The latest 3,600-frame window measured total median 16.66 / p95 16.67 / max
+17.53 ms; scene 4.70, glyph 0.56, upload 0.20, present 11.13 ms; JS median
+0.008 / p95 0.018 ms. Dummy presentation pacing dominates total time. This run
+preceded final input/menu/config hardening and fixed smoke seeding; those are
+covered by later host/ASan and guest parity tests. Default JS/audio hot paths
+are unchanged. This is stability evidence, not exhaustive gameplay coverage.
+
+## Visual checks and emulator findings
+
+Inspected the Linux framebuffer and the actual cropped emulator window:
+terrain, water, trees/rocks, characters, health bars, ASCII palette and footer
+are present. Generated evidence remains ignored under `build/linux/` and
+`build/vita3k-final/window-final.png`; it is not committed source content.
+
+Two integration issues were caught and corrected by emulator testing:
+
+- Vita SDL's `SDL_StartTextInput()` opened native IME over normal gameplay.
+  Vita now explicitly stops native text input and uses the existing controller/
+  front-touch keyboard. A subsequent emulator window capture has no overlay.
+- The tested Vita3K file-mode translator ignores `O_TRUNC`. Settings use a
+  freshly created staging file followed by replacement; regression fixtures
+  likewise create a real one-byte file. The guest explicitly verifies existing
+  settings replacement and corrupt-file rejection without partial apply.
+
+Front touch IDs are 1 (front) / 2 (rear) in SDL Vita; engine contact zero is
+reserved for mouse. The adapter now maps three front fingers to contacts 1–3.
+The guest smoke injects the first SDL finger and asserts it reaches contact 1.
+OpenGL/no-hashless-cache remains the working emulator graphics baseline; see
+`docs/VITA3K.md`. Physical speakers, controls, suspend/resume, memory/frame
+budgets and independent asset-rights clearance remain external release gates.
+
+## Historical Phase 0–2 evidence (superseded scope)
+
+The records below describe the earlier scripting/audio-disabled preview only,
+before the user authorized Phase 3–4. They do not describe current feature scope.
 
 ## Commands and results
 

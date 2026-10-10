@@ -8,11 +8,12 @@ HOST_UID := $(shell id -u)
 HOST_GID := $(shell id -g)
 ARGS ?=
 CMAKE_ARGS ?=
-VITA3K ?= Vita3K
+VITA3K ?= $(CURDIR)/build/tools/vita3k/Vita3K
+VITA3K_DIR ?= build/vita3k
 # Vita3K separates guest arguments with comma + space, not ordinary spaces.
 VITA3K_ARGS ?=
 
-.PHONY: help linux run test test-in-container test-asan smoke verify-vpk vita vita3k vita3k-smoke docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
+.PHONY: help linux run test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
 
 help:
 	@printf '%s\n' \
@@ -25,7 +26,8 @@ help:
 	  'make linux-docker-image Build the local Linux build image' \
 	  'make vita         Build the PS Vita VPK in Docker' \
 	  'make verify-vpk   Build Vita and verify packaged assets' \
-	  'make vita3k       Build and launch in Vita3K (VITA3K=/path/to/Vita3K)' \
+	  'make vita3k-setup Download/check the pinned Linux x86_64 emulator' \
+	  'make vita3k       Set up Vita3K, build and launch the Vita app' \
 	  'make vita3k-smoke Run 600-frame guest movement/camera smoke in Vita3K' \
 	  'make clean        Remove all generated files'
 
@@ -70,7 +72,7 @@ docker-image:
 # The bind mount means build/vita is retained on the host after Docker exits.
 vita: docker-image prepare-vita-build
 	docker run --rm --user "$(HOST_UID):$(HOST_GID)" --volume "$(CURDIR):/workspace" --workdir /workspace $(DOCKER_IMAGE) \
-	  make vita-in-container
+	  make vita-in-container VITA_BUILD_DIR=$(VITA_BUILD_DIR) CMAKE_ARGS="$(CMAKE_ARGS)"
 
 prepare-vita-build:
 	docker run --rm --user 0 --volume "$(CURDIR):/workspace" $(DOCKER_IMAGE) \
@@ -79,7 +81,7 @@ prepare-vita-build:
 vita-in-container:
 	cmake -S . -B $(VITA_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release \
 	  -DCMAKE_TOOLCHAIN_FILE="$$VITASDK/share/vita.toolchain.cmake" \
-	  -DSDL2_DIR=/opt/sdl2-vita/lib/cmake/SDL2
+	  -DSDL2_DIR=/opt/sdl2-vita/lib/cmake/SDL2 $(CMAKE_ARGS)
 	cmake --build $(VITA_BUILD_DIR) --parallel
 
 verify-vpk: vita
@@ -87,19 +89,25 @@ verify-vpk: vita
 	  --workdir /workspace $(DOCKER_IMAGE) cmake -DVPK=$(VITA_BUILD_DIR)/$(PROJECT).vpk \
 	  -DMANIFEST=$(VITA_BUILD_DIR)/asset_manifest.txt -P cmake/verify_vpk.cmake
 
-vita3k: vita
+vita3k-setup: docker-image
 	docker run --rm --user 0 --volume "$(CURDIR):/workspace" $(DOCKER_IMAGE) \
-	  sh -c 'mkdir -p /workspace/build/vita3k && chown -R $(HOST_UID):$(HOST_GID) /workspace/build/vita3k'
+	  sh -c 'mkdir -p /workspace/build/tools && chown -R $(HOST_UID):$(HOST_GID) /workspace/build/tools'
+	sh tools/setup_vita3k.sh "$(VITA3K)" "$(CURDIR)/build/tools/vita3k/Vita3K"
+
+vita3k: vita3k-setup
+	$(MAKE) vita
+	docker run --rm --user 0 --volume "$(CURDIR):/workspace" $(DOCKER_IMAGE) \
+	  sh -c 'mkdir -p /workspace/$(VITA3K_DIR) && chown -R $(HOST_UID):$(HOST_GID) /workspace/$(VITA3K_DIR)'
 	docker run --rm --user "$(HOST_UID):$(HOST_GID)" --volume "$(CURDIR):/workspace" \
 	  --workdir /workspace $(DOCKER_IMAGE) cmake \
-	  -DOUTPUT=/workspace/build/vita3k/config.yml \
-	  -DPREF_PATH="$(CURDIR)/build/vita3k/storage/" -P cmake/prepare_vita3k.cmake
+	  -DOUTPUT=/workspace/$(VITA3K_DIR)/config.yml \
+	  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -P cmake/prepare_vita3k.cmake
 	"$(VITA3K)" --frontend sdl --console --load-config \
-	  --config-location "$(CURDIR)/build/vita3k/config.yml" --keep-config \
+	  --config-location "$(CURDIR)/$(VITA3K_DIR)/config.yml" --keep-config \
 	  --app-args '$(VITA3K_ARGS)' "$(CURDIR)/$(VITA_BUILD_DIR)/$(PROJECT).vpk"
 
 vita3k-smoke:
-	$(MAKE) vita3k VITA3K_ARGS='--smoke, --frames, 600, --screenshot, ux0:data/asciicker/vita3k.bmp'
+	$(MAKE) vita3k VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
 
 clean:
 	$(RM) -r $(BUILD_DIR)

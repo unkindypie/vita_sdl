@@ -60,6 +60,12 @@ struct MainMenu
 static void ResetGame();
 static void start_new_game(MainMenuContext* m)
 {
+#ifdef PORTABLE_SDL
+    // Reset outside engine event/render calls, through shared scene ownership.
+    extern void PortableNewGame();
+    PortableNewGame();
+    return;
+#endif
     if (game_loading)
         ResetGame();
     game_loading = 1;
@@ -1465,6 +1471,10 @@ void MainMenu_Render(uint64_t _stamp, AnsiCell* ptr, int width, int height)
 
 void MainMenu_Show()
 {
+#ifdef PORTABLE_SDL
+    if (game && world) { game_loading = 2; show_continue = true; }
+    mainmenu_context.Init();
+#endif
     if (MakeStamp)
         mainmenu_stamp = dither_stamp = MakeStamp();
     mainmenu_dither = 2*mainmenu_dither_hidden;
@@ -1693,9 +1703,13 @@ static bool main_menu_blood_getter(MainMenuContext* m)
 
 static const MainMenu main_menu_video[]=
 {
+#ifndef PORTABLE_SDL
 	{"ZOOM IN", 0, main_menu_zoomin, 0, /*cookie*/0},
 	{"ZOOM OUT", 0, main_menu_zoomout, 0, /*cookie*/0},
+#endif
+#ifndef __vita__
 	{"FULL SCREEN", 0, main_menu_fullscreen, main_menu_fullscreen_getter, /*cookie*/0},
+#endif
 	{"PERSPECTIVE", 0, main_menu_perspective, main_menu_perspective_getter, /*cookie*/0},
 	{"SHOW BLOOD", 0, main_menu_blood, main_menu_blood_getter, /*cookie*/0},
 	{0}
@@ -1721,9 +1735,17 @@ static void main_menu_gamepad(MainMenuContext* m)
 
 static const MainMenu main_menu_controls[]=
 {
+#ifdef PORTABLE_SDL
+    {"WASD MOVE - Q E CAMERA", 0, 0, 0, 0},
+    {"SPACE JUMP - ENTER ATTACK", 0, 0, 0, 0},
+    {"I INVENTORY - TAB CHAT", 0, 0, 0, 0},
+    {"SELECT START TEXT KEYBOARD", 0, 0, 0, 0},
+    {"TOUCH BUTTONS OR INVENTORY", 0, 0, 0, 0},
+#else
 	{"KEYBOARD", 0, 0, 0, /*cookie*/0},
 	{"MOUSE", 0, 0, 0, /*cookie*/0},
 	{"TOUCH", 0, 0, 0, /*cookie*/0},
+#endif
 	{"GAMEPAD", 0, main_menu_gamepad, 0, /*cookie*/0},
 	{0}
 };
@@ -1732,7 +1754,7 @@ static void main_menu_no_exit(MainMenuContext* m)
 {
     mainmenu_dither = mainmenu_dither_hidden;
 	m->menu_depth--;
-	m->menu_temp = mainmenu_context.menu_stack[game->menu_depth];
+	m->menu_temp = m->menu_stack[m->menu_depth];
 
     // TODO:
     // update scroll and smooth scroll so menu_temp appears fully visible
@@ -1742,7 +1764,7 @@ static void main_menu_no_exit(MainMenuContext* m)
 void exit_handler(int signum);
 static void main_menu_yes_exit(MainMenuContext* m)
 {
-	#ifdef USE_SDL
+	#if defined(USE_SDL) && !defined(PORTABLE_SDL)
 	exit(0);
 	#else
 	exit_handler(0);
@@ -1788,15 +1810,28 @@ static bool main_menu_mute_getter(MainMenuContext* m)
     return game->mute;
 }
 
+static const MainMenu portable_credits[] =
+{
+    {"ASCIICKER: MSOKALSKI", 0, 0, 0, 0},
+    {"QUICKJS: BELLARD / GORDON", 0, 0, 0, 0},
+    {"SDL2 / VITASDK", 0, 0, 0, 0},
+    {"LICENSES BUNDLED IN VPK", 0, 0, 0, 0},
+    {0}
+};
+
 static const MainMenu mainmenu_root[]=
 {
     // this is optional (must be first entry!)
     // MainMenuGetRoot() will skip it if !show_continue
 	{"CONTINUE", 0, main_menu_continue, 0, /*cookie*/0},
 
+#ifdef PORTABLE_SDL
+	{"NEW GAME", 0, start_new_game, 0, /*cookie*/0},
+#else
 	{"NEW GAME", main_menu_new_game, 0, 0, /*cookie*/0},
 	{"PROFILE", 0, main_menu_profile, 0, /*cookie*/0},
-	{"CREDITS", 0, main_menu_credits, 0, /*cookie*/0},
+#endif
+	{"CREDITS", portable_credits, 0, 0, /*cookie*/0},
 	{"VIDEO", main_menu_video, 0, 0, /*cookie*/0},
 	{"CONTROLS", main_menu_controls, 0, 0, /*cookie*/0},
 	{"MUTE SOUND", 0, main_menu_mute, main_menu_mute_getter, /*cookie*/0},

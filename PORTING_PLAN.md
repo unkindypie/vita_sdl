@@ -1,37 +1,54 @@
 # Asciicker Linux / PS Vita Porting Plan
 
-Status: Phase 0–2 implementation delivered with Linux substitute validation,
-2026-10-10. Vita3K smoke now passes with documented graphics settings;
-real Vita acceptance remains unverified.
+Status: offline runtime phases 0–4 implemented, 2026-10-10. Linux and actual
+ARM/Vita3K gameplay parity checks pass. Real-device/public-release acceptance
+remains explicitly unverified; this is version 0.3, not hardware certification.
 
 ## Current execution scope
 
-Per the implementation request, stop after Phase 2. Substitute Linux headless
-tests, a host `make run` launch with diagnostics, and scene/movement checks for
-Vita runtime tests. Still cross-compile and package the VPK. Attempt Vita3K if
-available/useful; emulator results do not establish real Vita performance.
-Hardware-only criteria below are deferred for this pass, not implicitly passed.
-Full QuickJS game bindings, audio integration, parity work, GPU optimization,
-and release preparation remain outside this implementation.
+The latest user request supersedes the Phase 2 stopping point: finish the
+offline runtime, including JavaScript, audio, combat, inventory and menus;
+continue Linux/emulator validation and compare performance after JavaScript.
+Use official QuickJS 2026-06-04 on both targets. Hardware-only checks are still
+deferred under the requested Linux/emulator substitution, not implicitly passed.
+GPU work remains a measured decision gate, not a mandatory renderer rewrite.
 
 Progress:
 
-- Phase 0: completed for the authorized substitute scope. Pinned sources,
-  both builds, Linux QuickJS probe, manifest, and Docker tests pass. QuickJS
-  execution on Vita remains unverified; it is not connected to the game yet.
+- Phase 0: completed for substitute scope. Pinned sources, both builds, probe,
+  manifest and Docker tests pass. QuickJS now executes actual game callbacks
+  and source scripts in Linux and the ARM Vita binary under Vita3K.
 - Phase 1: completed. Real upstream scene, CPU ASCII presenter, shared SDL2
   launcher, input, and bounded profiling run on Linux. Simulation and CPU scene
   rendering are measured together because they share upstream `Game::Render`.
 - Phase 2: implemented. VPK cross-compilation and packaging pass; Linux host
   smoke checks exercise movement, camera, grounded physics, and clean shutdown.
   Soak and supplementary emulator findings are recorded in `docs/VALIDATION.md`.
-  The 900-second Linux soak completed cleanly (53,928 frames). Normal and ASan
-  suites each pass 3/3; VPK verification confirms 251 required entries.
+  The earlier no-JS 900-second soak completed (53,928 frames; then 3/3 tests,
+  251 package entries). Current JS/audio validation supersedes those counts:
+  53,986 frames over 900 seconds; normal/ASan 4/4; 257 package entries.
   Follow-up: a 600-frame Vita3K smoke passes with movement/camera/grounded
   checks, framebuffer capture, and clean shutdown using OpenGL with hashless
   caching off. Vulkan's texture-protection fault is avoided, not fixed upstream.
   This is not a declaration of real-device acceptance or 30 FPS on Vita.
-- Phase 3 and later: not started.
+- Phase 3: implemented and explicitly exercised on Linux/Vita3K. Full `ak`
+  bridge, default per-frame script, console/controller keyboard, execution/
+  stack/heap limits, safe New Game reset, SDL Ogg/mixer/playback, real combat,
+  inventory ownership, menus and validated settings. See `docs/PARITY.md`,
+  `docs/SCRIPTING.md`, `docs/AUDIO.md` and current `docs/VALIDATION.md`.
+- Performance gate: retained the optimized CPU presenter. Scene work dominates;
+  separate `js_p50/js_p95` diagnostics and matched JS-on/off runs monitor script
+  cost. No evidence currently justifies replacing the whole scene renderer.
+- Phase 4: offline candidate packaging/documentation complete: ASCIIV001,
+  “Asciicker Vita” 00.30, original icon, manifest and notices, clean builds and
+  emulator install. Hardware performance/suspend/physical audio and independent
+  asset clearance remain external release gates, listed below and in parity docs.
+
+Latest performance gate: JS-on Linux total median 6.16–6.30 ms, callback median
+0.007–0.010 ms. Vita3K JS-on total median/p95 27.97/34.03 ms versus JS-off
+28.17/34.66 ms; JS callback median/p95 0.020/0.046 ms. This is below observed
+host/emulator variance, not a real-device performance claim. The JS/audio soak
+reports zero script errors/audio drops and 52 KiB RSS drift after warm-up.
 
 Follow-up CPU optimization: compile the ASCII presenter with `-O2` in Debug
 as well as Release, and fast-path zero/full glyph coverage while preserving
@@ -47,8 +64,8 @@ is an interactive ASCII scene using the real engine, maps, terrain, sprites,
 character movement, camera, and collision, in the style of the upstream demos.
 
 `REQUIREMENTS.md` now describes this port, replacing the voice-training direction.
-`AGENTS.md` has been aligned with the engine, native GXM SDL build, Linux tests,
-diagnostics, and the explicit Phase 2 stopping point.
+`AGENTS.md` follows the engine, native GXM SDL build, Linux tests, diagnostics,
+bounded synchronous scripting and allocation-free audio callback practices.
 
 Initial scope is the offline game runtime. The desktop editor, multiplayer,
 new game content, and a replacement GPU scene renderer are later work.
@@ -66,8 +83,8 @@ their presence in upstream does not make them automatically supported.
 | Tests | Headless CMake/CTest suite through Docker and `make test` | Hardware-specific behavior requires a separate manual check |
 | Dependencies | Pin upstream engine and runtime revisions and toolchain image digests | A deliberate dependency update passes regression checks |
 
-QuickJS is a recommendation to validate, not an already proven drop-in V8
-replacement. Do not spend the initial port attempting to bring V8 to Vita.
+QuickJS's actual game bridge is now validated; it is not a general drop-in V8
+host API replacement. Do not attempt to bring V8 to Vita for this runtime.
 Lua/Python would require translating JavaScript and bindings, so they are not
 the baseline. A scripting-disabled build is allowed for early bring-up only;
 it must identify unavailable functionality and must not masquerade as parity.
@@ -183,7 +200,7 @@ Tasks:
   and record device model, firmware, clock settings, build, and scene.
 - [x] Inspect the Linux scene framebuffer, including terrain, objects, water,
   sprites, and movement. Real Vita visual comparison remains deferred.
-- [ ] Fix platform differences and bounds/ownership failures before adding
+- [x] Fix platform differences and bounds/ownership failures before adding
   optional functionality.
 
 Exit criteria — first playable demo:
@@ -206,23 +223,29 @@ desktop frame rate shown in reference screenshots.
 
 Tasks:
 
-- [ ] Replace V8-specific context creation, native registrations, evaluation,
+- [x] Replace V8-specific context creation, native registrations, evaluation,
   callbacks, and error handling with a QuickJS adapter.
-- [ ] Preserve the `ak` API and existing JavaScript bootstrap where compatible.
+- [x] Preserve the `ak` API and existing JavaScript bootstrap where compatible.
   Verify shared-buffer ownership, lifetime, bounds, typed-array layout, and
   UTF-8 string conversion explicitly.
-- [ ] Test position/direction/camera/movement setters and getters; water/light;
+- [x] Test position/direction/camera/movement setters and getters; water/light;
   mount/action; `say`, `jump`, `isGrounded`; and `onSay`, `onItem`, `onFrame`.
-- [ ] Check callback registration/removal, state reset on a new game, exceptions,
+- [x] Check callback registration/removal, state reset on a new game, exceptions,
   repeated initialization, and shutdown. Add script execution/memory limits
   and verify an interrupted script leaves the application usable.
-- [ ] Support existing script-entry behavior; define a usable Vita text-entry
+- [x] Support existing script-entry behavior; define a usable Vita text-entry
   route if the in-game scripting console is included in the release.
-- [ ] Select the SDL2 audio playback backend and validate mixing, sample loading,
-  format, pause/resume, synchronization, and failure behavior on both platforms.
-- [ ] Validate combat, inventory, interactions, menu navigation, configuration,
+- [x] Select the SDL2 audio playback backend and validate mixing, sample loading,
+  format, pause/resume, synchronization, and failure behavior on Linux/Vita3K.
+  Physical speaker/suspend checks remain hardware-only.
+- [x] Validate combat, inventory, interactions, menu navigation, configuration,
   and save/continue behavior where implemented upstream. Maintain a parity
   matrix with supported, deferred, and broken states backed by tests.
+
+Evidence: shared `src/app/self_test.h`, CTest launch/scene/audio-fallback tests,
+`make vita3k-smoke` with `GAMEPLAY_CHECKS_OK`, and `docs/PARITY.md`. Upstream
+Continue means current-world resume, not campaign persistence; Profile and
+fixed-grid zoom placeholders are hidden, not falsely implemented.
 
 Exit criteria:
 
@@ -275,12 +298,17 @@ from pass/fail unit tests and do not require display/audio hardware for CTest.
 
 ## Phase 4 — Release preparation
 
-- [ ] Finalize app name, unique title ID, version, icon, and asset/license notices.
-- [ ] Verify a clean build and fresh VPK installation using documented commands.
-- [ ] Complete the offline feature parity matrix and known-issues list.
-- [ ] Document controls, configuration location, dependency setup, and any
+- [x] Finalize app name, project-specific title ID, version, icon, and provenance/
+  license notices. ASCIIV001 is project metadata, not a globally registered ID.
+- [x] Verify clean builds and isolated Vita3K VPK installation with documented
+  commands; normal hardware installation remains unverified.
+- [x] Complete the offline feature parity matrix and known-issues list.
+- [x] Document controls, configuration location, dependency setup, and any
   additional on-device runtime requirements introduced by chosen libraries.
-- [ ] Repeat tests and representative hardware sessions with the release build.
+- [x] Repeat Linux tests and representative emulator sessions with the release
+  Vita build under the user's device-test substitution.
+- [ ] Actual hardware: representative sessions, speakers/headphones, lifecycle,
+  memory/frame budget and stable 30 FPS; independent asset-rights clearance.
 
 Release acceptance requires both platform builds, passing host tests, agreed
 offline gameplay functionality, a usable controller UI, and recorded Vita

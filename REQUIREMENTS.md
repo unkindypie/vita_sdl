@@ -1,57 +1,56 @@
-# Asciicker Linux / PS Vita Preview Requirements
+# Asciicker Linux / PS Vita requirements
 
-Status: Phase 0–2 implementation baseline, 2026-10-10.
-See `PORTING_PLAN.md` for tasks, decisions, progress, and deferred phases.
-The previous voice-training product direction has been superseded.
+Status: offline runtime version 0.3, 2026-10-10. All offline-port phases are now
+authorized, superseding the Phase 2 stopping point and voice-training direction.
+See `PORTING_PLAN.md` and `docs/PARITY.md`.
 
-## Required behavior through Phase 2
+## Required behavior
 
-- **PORT-001:** Build the same C++17 game runtime for Linux and PS Vita through
-  Docker, Make, and CMake, with separate native/cross-compilation directories.
-- **PORT-002:** Use pinned vendored Asciicker sources and preserve its CPU scene
-  renderer, terrain/world formats, sprites, physics, and ASCII-cell semantics.
-- **PORT-003:** Load the upstream `game_map_y8.a3d` and required meshes/sprites;
-  display a real interactive scene rather than a canned image.
-- **PORT-004:** Present a 120x68 cell grid using the upstream 8x8 CP437 atlas and
-  palette at 960x544, with predictable desktop resizing and readable hints.
-- **PORT-005:** Support character movement, camera rotation, jumping, and exit
-  with keyboard and Vita-style controller controls. Keep terrain collision.
-- **PORT-006:** Validate bundled asset availability before engine initialization
-  and report missing files with a nonzero process exit.
-- **PORT-007:** Package the complete required asset manifest and dependency
-  license notices in the VPK. Keep configuration/logs out of the asset root.
-- **PORT-008:** Close acquired resources on exit; pause/reset input on focus or
-  lifecycle interruption and support controller connection/disconnection.
-- **PORT-009:** Keep script/audio/network states explicit. The preview operates
-  offline, without full game scripting or audio playback.
-- **PORT-010:** Compile a standalone QuickJS probe on both platforms; on Linux
-  verify source evaluation, native functions, typed-array writes through a
-  shared ArrayBuffer, exceptions, and runtime teardown. Full game bindings wait
-  for Phase 3.
-- **PORT-011:** Bound frame/history diagnostics and provide per-stage frame-time
-  logs, finite smoke runs, and framebuffer capture for diagnosis.
-- **PORT-012:** Keep headless CTest tests runnable through `make test` without
-  microphone, display, network, Vita, or user input after build setup.
+- **PORT-001:** Shared C++17 runtime through Docker/Make/CMake; separate Linux
+  and Vita cross-compiled output, pinned source/toolchain inputs.
+- **PORT-002:** Preserve CPU rendering, physics, terrain/world formats, sprites
+  and ASCII-cell semantics rather than substituting a screenshot.
+- **PORT-003:** Load real `game_map_y8.a3d`, meshes and sprites.
+- **PORT-004:** 120x68 cells, upstream 8x8 CP437 font/palette, 960x544 baseline;
+  intentional desktop letterboxing and readable state/controls.
+- **PORT-005:** Keyboard/Vita movement, camera, collision, jump, combat, inventory
+  pickup/equip/drop, menus and exit, without L2/R2/stick-click dependency.
+- **PORT-006:** Asset preflight reports missing files and exits nonzero.
+- **PORT-007:** VPK contains all manifest assets, icon, metadata and notices;
+  writable settings/logs never target bundled `app0:` assets.
+- **PORT-008:** Clean teardown/reload, input reset on focus/disconnect, audio
+  pause/resume; New Game resets world, inventory, JS context and callbacks.
+- **PORT-009:** Explicit offline services. Editor, multiplayer, campaign saves,
+  new content and GPU renderer rewrite remain excluded.
+- **PORT-010:** Same official QuickJS 2026-06-04 on both targets. Preserve the
+  synchronous `ak` API/bootstrap, shared-buffer layout, callbacks, UTF-8 and
+  console. Bound memory/stack/execution and recover after errors.
+- **PORT-011:** Bounded diagnostic windows, scene/glyph/upload/present/JS timing,
+  memory snapshots, finite smoke and framebuffer capture. JS-off is labelled
+  as a performance baseline, not the default game mode.
+- **PORT-012:** Headless Docker CTest tests require no display/audio hardware,
+  Vita, network or input after setup. Include regression and ASan checks.
+- **PORT-013:** SDL audio plays real ambience/footstep cues through bounded,
+  allocation-free callback mixing. Mute persists; device failures visibly
+  degrade to silent gameplay. No microphone/recording dependency.
+- **PORT-014:** Usable main/in-game menus, validated settings and talk presets.
+  Continue resumes the current world, not a nonexistent upstream campaign save.
+- **PORT-015:** Explicit combat/inventory/menu/audio/script evidence on Linux
+  and actual ARM code in Vita3K, not inferred from linking or one screenshot.
 
-## Acceptance for this implementation pass
+## Acceptance and evidence
 
-- `make linux`, `make test`, and `make vita` succeed.
-- `make run` with smoke options launches on the Linux desktop, displays the
-  actual scene, logs movement/camera/grounded checks, and exits cleanly.
-- Presenter tests check palette, glyph placement, row inversion, blank cells,
-  output bounds, and padded rows. Scene tests load/render/teardown repeatedly.
-- A 15-minute Linux runtime soak records memory and timing without crashing or
-  hanging. Memory observations are reported rather than inferred from bounds.
-- VPK contents match the asset manifest.
-- Vita runtime tests are replaced by Linux tests at the user's request.
-  Vita3K may provide additional smoke evidence; actual device performance,
-  suspend/resume, and controls remain unverified until tested on hardware.
-- The desired Vita baseline is 30 FPS; no hardware frame-rate claim is made
-  from desktop or emulator timings.
+- `make test`, `make test-asan`, `make linux`, `make vita`, `make verify-vpk`.
+- `make run ARGS='--smoke --frames 600 --verify-gameplay --screenshot build/linux/parity.bmp'`:
+  movement/camera/grounded, New Game, parity and clean shutdown markers.
+- `make vita3k-smoke VITA3K=/path/to/Vita3K`: same guest checks; inspect latest
+  `stages.log` boot section and framebuffer, not only host exit status.
+- JS-on/JS-off measurements without the intrusive parity harness, plus a
+  15-minute Linux JS/audio soak recording actual RSS/timing observations.
+- `docs/PARITY.md` distinguishes delivered behavior, upstream absences and
+  hardware-only acceptance; `docs/VALIDATION.md` records commands/results.
 
-## Deferred beyond Phase 2
-
-Full QuickJS game bindings, script console/text entry, audio playback integration,
-combat/inventory/menu/save parity, networking, editor port, GPU glyph presenter,
-GPU scene renderer, and public release readiness are deferred. Existing upstream
-actions may be reachable, but their presence does not establish parity.
+Linux and emulator checks substitute for device tests as requested. They do
+not establish physical controls/speakers/suspend behavior or stable 30 FPS /
+actual memory budget on Vita. Hardware certification and independent upstream
+asset-rights clearance remain release gates, not silently passed tasks.

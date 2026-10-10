@@ -4,6 +4,7 @@
 #include "platform.h"
 #include "scripting/probe.h"
 #include "ui/cells.h"
+#include "app/self_test.h"
 #include <cmath>
 #include <cstring>
 #include <cstdio>
@@ -15,7 +16,8 @@ uint64_t stamp() { return 1000000; }
 }
 int main(int argc, char** argv) {
     try {
-        require(argc == 3, "expected asset root and manifest");
+        require(argc == 4, "expected asset root, manifest and isolated config path");
+        port::set_config_path(argv[3]);
         require(port::palette_color(16) == 0xFF000000, "black");
         require(port::palette_color(196) == 0xFFFF0000, "red");
         require(port::palette_color(46) == 0xFF00FF00, "green");
@@ -50,6 +52,7 @@ int main(int argc, char** argv) {
         require(port::engine_key(SDLK_w) == A3D_W, "keyboard mapping");
         require(port::engine_button(SDL_CONTROLLER_BUTTON_DPAD_RIGHT) == 14, "dpad mapping");
         require(port::engine_button(255) == -1, "unknown button");
+        require(port::engine_touch_contact(0)==1 && port::engine_touch_contact(2)==3 && port::engine_touch_contact(3)==-1,"touch reserves mouse contact zero");
         require(port::axis_value(-5999) == 0 && port::axis_value(-32768) == -32768, "deadzone");
         std::string error;
         require(port::probe_quickjs(error), error.c_str());
@@ -67,6 +70,7 @@ int main(int argc, char** argv) {
             for (const auto& cell : frame) if (cell.gl != ' ' && cell.gl != 0) ++nonblank;
             require(nonblank > 500, "actual scene contains glyphs");
             require(std::isfinite(game->player.pos[2]), "physics position finite");
+            gameplay_checks(argv[1]);
             game->OnKeyb(KEYB_DOWN, A3D_W);
             require(game->input.IsKeyDown(A3D_W), "press delivered");
             game->OnKeyb(KEYB_UP, A3D_W);
@@ -79,7 +83,7 @@ int main(int argc, char** argv) {
             require(!game->input.IsKeyDown(A3D_W), "focus loss clears held movement");
             require(game->input.size[0] == 960 && game->input.size[1] == 544, "focus loss preserves dimensions");
             game->OnFocus(true);
-            game->Render(1000000 + 91 * 16667ULL, frame.data(), 120, 68);
+            game->Render(game->stamp + 16667ULL, frame.data(), 120, 68);
             require(std::isfinite(game->player.pos[2]), "foreground render resumes");
             port::close_scene();
             require(game == nullptr, "scene released");

@@ -22,7 +22,8 @@ target; Vita is the cross-compilation and packaging target. Follow
 - `src/app/`: scene ownership and launcher integration.
 - `src/ui/`: platform-independent ASCII-cell presentation.
 - `src/platform/`: SDL input mapping and engine platform hooks.
-- `src/scripting/`: QuickJS compatibility probe; game bindings deferred.
+- `src/scripting/`: bounded QuickJS runtime, upstream `ak` bridge, feature probe.
+- `src/audio/`: predecoded Ogg assets, bounded SPSC mixer and SDL playback.
 - `docs/`: feature/system documentation and recorded validation evidence.
 - `PORTING_PLAN.md`: phase checklist, decisions, and implementation progress.
 
@@ -40,7 +41,8 @@ make test-asan    # Same host tests with AddressSanitizer
 make smoke        # Host launch with scripted input checks and a BMP capture
 make vita         # Release Vita build and VPK packaging in VitaSDK
 make verify-vpk   # Build and verify packaged manifest entries
-make vita3k       # Build/run Vita binary in emulator; set VITA3K=/path/to/Vita3K
+make vita3k-setup # Download/check pinned host emulator under build/tools/
+make vita3k       # Automatically set up emulator, build/run Vita binary
 make vita3k-smoke # Finite guest smoke with raw stage logs and BMP capture
 make clean        # Remove generated build output
 ```
@@ -108,8 +110,16 @@ API availability or runtime behavior.
 - Use the documented OpenGL/no-hashless-cache Vita3K baseline. Its host backend
   is independent of Vita's SDL GXM renderer. Check guest `SMOKE_OK` and clean
   shutdown in the latest stage-log section, not only emulator process status.
-- Audio, full scripting, networking, and GPU scene rendering are outside Phase 2.
-  Disabled adapters must identify unavailable features, not imply feature parity.
+- Offline gameplay, audio and QuickJS bindings are now in scope. Networking,
+  editor, campaign persistence and a replacement GPU renderer are not.
+- Keep the official QuickJS 2026-06-04 snapshot pinned on both targets. Preserve
+  shared-buffer offsets, UTF-8 boundaries, script limits, and callback teardown.
+  Run scripts only on the game thread; do not expose host filesystem or shells.
+- Audio callbacks must not allocate, log, read files, or take locks. Decode
+  samples before unpausing the device; close/join it before resetting mixer data.
+  Keep the command queue bounded and report dropped commands outside callbacks.
+- Keep settings under the writable profile root. Reject partial/corrupt files
+  without partially applying them; never overwrite real preferences in tests.
 
 
 ## Tests
@@ -131,8 +141,17 @@ New behavior is not complete without tests at the lowest useful layer.
   For this implementation pass, Linux checks replace Vita runtime tests at the
   user's request. Keep Vita compilation/VPK checks; Vita3K is supplementary.
   Never infer hardware performance or suspend/resume correctness from Linux.
-- QuickJS probe coverage includes evaluation, native calls, shared buffers,
-  exceptions, and teardown. Full game binding tests belong to Phase 3.
+- `src/app/self_test.h` is a diagnostic parity harness shared by host tests and
+  the actual Vita executable (`--smoke --frames 600 --verify-gameplay`). It
+  intentionally mutates gameplay and injects failing scripts: never run it
+  during normal play or use its error counts/timings as a gameplay benchmark.
+- Test observable combat damage/projectiles, inventory ownership and controller
+  actions, menu Continue/New Game, console execution, `ak` callbacks/bounds/
+  Unicode/limits, mixer cues/clipping/mute/overflow, audio fallback and pause.
+  Repeated scene loads must reset world, inventory, callbacks and script state.
+- Compare default JS against `--no-js` using matched runs without the parity
+  harness. Include `js_p50/js_p95`; scene timing includes JavaScript, so those
+  timings overlap and must not be summed. Record backend and host contention.
 - A bug fix should include a regression test when the failure can be reproduced
   below the hardware/UI layer.
 

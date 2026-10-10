@@ -1,4 +1,5 @@
-// Explicit Phase 0-2 adapters. Full game scripting/audio/networking are deferred.
+// Native platform hooks; networking deliberately remains offline.
+#include <SDL2/SDL.h>
 #include "game.h"
 #include "game_api.h"
 #include "audio.h"
@@ -14,15 +15,16 @@ Terrain* terrain = nullptr;
 World* world = nullptr;
 Server* server = nullptr;
 Material mat[256] = {};
-void* akAPI_Buff = nullptr;
 uint64_t (*MakeStamp)() = nullptr;
 static bool exit_requested = false;
-static bool fullscreen = false;
+static bool new_game_requested = false;
 static char config_path[1024] = {};
 namespace port {
 void set_config_path(const char* path) { std::snprintf(config_path, sizeof(config_path), "%s", path); }
 bool should_exit() { return exit_requested; }
 void reset_exit() { exit_requested = false; }
+void request_new_game() { new_game_requested = true; }
+bool take_new_game_request() { const bool pending = new_game_requested; new_game_requested = false; return pending; }
 void log_stage(const char* stage) {
     std::printf("STAGE %s\n", stage);
 #ifdef __vita__
@@ -40,23 +42,24 @@ void Buzz() {}
 void SyncConf() {}
 const char* GetConfPath() { return config_path; }
 void exit_handler(int) { exit_requested = true; }
+void PortableNewGame() { port::request_new_game(); }
 bool NextGLFont() { return false; }
 bool PrevGLFont() { return false; }
-void ToggleFullscreen(Game*) { fullscreen = !fullscreen; }
-bool IsFullscreen(Game*) { return fullscreen; }
+void ToggleFullscreen(Game*) {
+#ifndef __vita__
+    SDL_Window* window = SDL_GetKeyboardFocus();
+    if (window && SDL_SetWindowFullscreen(window, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        port::log_stage(SDL_GetError());
+#endif
+}
+bool IsFullscreen(Game*) {
+#ifdef __vita__
+    return true;
+#else
+    SDL_Window* window = SDL_GetKeyboardFocus();
+    return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP);
+#endif
+}
 bool Server::Send(const uint8_t*, int) { return false; }
 void Server::Proc() {}
 void Server::Log(const char* text) { std::fprintf(stderr, "OFFLINE: %s\n", text); }
-bool InitAudio() { return false; }
-void FreeAudio() {}
-void CallAudio(const uint8_t*, int) {}
-void AudioWalk(int, int, const SpriteReq*, int) {}
-void AudioMute(bool) {}
-int GetSampleID(AUDIO_FILE) { return -1; }
-bool akAPI_OnSay(const char*, int, bool*) { return false; }
-bool akAPI_OnItem(int, int, int, int, int, const char*, bool*, int*, const char**) { return false; }
-bool akAPI_OnFrame() { return false; }
-void akAPI_Exec(const char*, int, bool) { std::fprintf(stderr, "SCRIPT_UNAVAILABLE: Phase 3 bindings deferred\n"); }
-void akAPI_CB(int) {}
-void akAPI_Init() {}
-void akAPI_Free() {}

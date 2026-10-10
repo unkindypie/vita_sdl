@@ -10,7 +10,7 @@ Linux uses SDL's available accelerated renderer, with software fallback for
 headless tests. Vita uses upstream SDL2's native GXM backend. No desktop GL
 context, VitaGL shader compiler, editor, or GPU scene renderer is required.
 Desktop resizing uses SDL logical-size letterboxing. Two footer rows display
-controls and the intentionally deferred audio/script state.
+controls and the current audio/script state.
 
 `make run ARGS='--smoke --frames 240 --screenshot build/linux/smoke.bmp'` exercises
 the actual SDL event path, upstream movement/physics, camera rotation, glyph
@@ -27,7 +27,11 @@ Profiling stores at most 3,600 frame samples for each stage and reports median,
 p95, and maximum total time plus median scene/glyph/upload/presentation times.
 For longer runs, the summary describes the latest 3,600 frames, not all-time
 percentiles or an all-time maximum. Memory is sampled once per minute on Linux.
-Scene time includes simulation and software rendering. Upload includes SDL copy
+Scene time includes simulation, JavaScript and software rendering. `js_p50` /
+`js_p95` measure script callback work inside that scene interval, not an extra
+stage to add to it. `SCRIPT_PROFILE` reports cumulative calls, exceptions and
+runtime-accounted heap usage; intentional parity-harness failures are expected.
+Use runs without `--verify-gameplay` for performance comparisons. Upload includes SDL copy
 submission; presentation may include GPU/vsync waiting. These are diagnostic
 CPU timings, not GPU timestamps or real Vita performance measurements.
 

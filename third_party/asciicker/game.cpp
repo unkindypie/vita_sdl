@@ -395,6 +395,7 @@ bool WriteGamePadConf(const uint8_t* map, const char* name, int axes, int button
 	return n==w;
 }
 
+#ifndef PORTABLE_SDL
 void ReadConf(Game* g)
 {
 	FILE* f = fopen(GetConfPath(), "rb");
@@ -440,6 +441,7 @@ void WriteConf(Game* g)
 	
 	SyncConf();
 }
+#endif // Portable validated/atomic configuration lives in src/platform/config.cpp.
 
 struct HPBar
 {
@@ -9427,6 +9429,11 @@ void Game::OnPadButton(int b, bool down)
 						Buzz();
 						if (player.talk_box->len > 0)
 						{
+#ifdef PORTABLE_SDL
+                            const bool script = player.talk_box->len > 1 && player.talk_box->buf[0] == '\\' && player.talk_box->buf[1] != '\\';
+                            bool allowed = false;
+                            if (!script && akAPI_OnSay(player.talk_box->buf, player.talk_box->len, &allowed) && !allowed) break;
+#endif
 							if (player.talks == 3)
 							{
 								free(player.talk[0].box);
@@ -9953,9 +9960,13 @@ void main_menu(Game* g)
 
 static const Menu video_menu[]=
 {
+#ifndef PORTABLE_SDL
 	{"ZOOM IN", 0, menu_zoomin, 0},
 	{"ZOOM OUT", 0, menu_zoomout, 0},
+#endif
+#ifndef __vita__
 	{"FULL SCREEN", 0, menu_fullscreen, menu_fullscreen_getter},
+#endif
 	{"PERSPECTIVE", 0, menu_perspective, menu_perspective_getter},
 	{"SHOW BLOOD", 0, menu_blood, menu_blood_getter},
 	{0}
@@ -9978,9 +9989,17 @@ static const Menu settings_menu[]=
 
 static const Menu controls_menu[]=
 {
+#ifdef PORTABLE_SDL
+	{"WASD MOVE - Q E CAMERA", 0, 0, 0},
+	{"SPACE JUMP - ENTER ATTACK", 0, 0, 0},
+	{"I INVENTORY - TAB CHAT", 0, 0, 0},
+	{"SELECT START TEXT KEYBOARD", 0, 0, 0},
+	{"TOUCH BUTTONS OR INVENTORY", 0, 0, 0},
+#else
 	{"KEYBOARD", 0, 0, 0},
 	{"MOUSE", 0, 0, 0},
 	{"TOUCH", 0, 0, 0},
+#endif
 	{"GAMEPAD", 0, menu_gamepad, 0},
 	{0}
 };

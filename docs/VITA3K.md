@@ -1,16 +1,47 @@
 # Running the Vita build in Vita3K
 
-Install/extract the official Linux Vita3K emulator separately. It is a host
-debugging tool, not an application dependency. These commands build the VPK,
-generate a known-working config, and install/run it with the SDL frontend:
+Vita3K is a host debugging tool, not an application dependency. On Linux x86_64,
+the project downloads the tested official binary automatically, verifies its
+SHA-256, and extracts it to ignored `build/tools/vita3k/`. No `/tmp` installation,
+source clone, or PATH change is needed. These commands build the VPK, generate
+a known-working config, and install/run it with the SDL frontend:
 
 ```sh
-make vita3k VITA3K=/path/to/Vita3K
-make vita3k-smoke VITA3K=/path/to/Vita3K
+make vita3k-setup # optional: download/check without compiling the game
+make vita3k
+make vita3k-smoke
+# Optional fresh, isolated install (does not remove existing emulator data):
+make vita3k-smoke VITA3K_DIR=build/vita3k-fresh
 ```
 
+Setup requires host `curl`, `unzip`, `sha256sum` (coreutils), and `ldd`.
+The official binary also requires desktop libraries even with the SDL frontend:
+
+```sh
+# Fedora (the validated host family):
+sudo dnf install curl unzip coreutils glibc-utils qt6-qtbase qt6-qtsvg qt6-qtmultimedia libSM libICE libX11 libXext libxkbcommon wayland mesa-libGL mesa-libEGL openssl-libs brotli zstd-libs
+# Ubuntu 24.04 / Debian-family starting point:
+sudo apt install curl unzip coreutils libc-bin libqt6widgets6 libqt6svg6 libqt6multimedia6 libqt6network6 libqt6concurrent6 libsm6 libice6 libx11-6 libxext6 libxkbcommon0 libwayland-client0 libgl1 libegl1 libssl3 libbrotli1 libzstd1
+```
+
+Setup checks linked libraries before the expensive VPK build and reports missing
+ones. A working desktop/GPU driver and sufficiently recent glibc are still
+required; arbitrary distributions and architectures are not guaranteed. Other
+emulator installations can opt out of download with `VITA3K=/path/to/Vita3K`.
+No system packages, firmware, or commercial games are automatically installed.
+
+The pin is official build **4154-b75d5e62**, release asset **625596737**,
+SHA-256 `ec24d71a6c75db3eb1a03ceef20ca0f241cac59f28669dd5315172713c054d35`.
+`tools/setup_vita3k.sh` uses the asset ID rather than the mutable `continuous`
+download name. If upstream removes that asset, setup fails explicitly rather
+than silently taking a different build. Update ID/checksum together and rerun
+the guest smoke before adopting a new version. Successful installs are reused
+offline; interrupted downloads are not treated as installed emulators.
+`make clean` removes the downloaded emulator as well as generated storage.
+
 The smoke runs the actual ARM Vita binary for 600 frames with synthetic movement
-and camera events. It should append `SMOKE_OK` with all three checks set to 1,
+and camera events, a world/runtime reload and the gameplay parity harness.
+It should append `NEW_GAME_OK`, `GAMEPLAY_CHECKS_OK`, `SMOKE_OK` with all three checks set to 1,
 then `SHUTDOWN_OK`, to:
 
 `build/vita3k/storage/ux0/data/asciicker/stages.log`
@@ -22,8 +53,8 @@ inspect the latest boot section. Emulator exit status alone is not proof of a
 successful guest smoke. An early exit or `SMOKE_FAIL` needs investigation.
 
 `make vita3k VITA3K_ARGS='--smoke, --seconds, 60'` supports longer checks.
-Vita3K guest arguments must be comma-and-space separated. Select exits normal
-play. `make clean` also removes this generated emulator storage, including its
+Vita3K guest arguments must be comma-and-space separated. Select opens the menu;
+use its Exit confirmation to leave normal play. `make clean` also removes this generated emulator storage, including its
 installed preview, settings, screenshots, and logs; it does not affect your
 normal Vita3K storage.
 
@@ -51,3 +82,9 @@ Vita stdout/stderr files did not flush useful data in this emulator setup, so
 startup, periodic progress, profiling, smoke results, and shutdown also use raw
 Vita stage-file writes. Those writes occur outside renderer timing sections
 except for the one-time startup/presentation markers.
+
+The tested emulator's file-mode translator also ignores `O_TRUNC` on an
+existing file. Settings are written to a freshly created staging file and
+renamed over the committed file. The corruption regression test creates a
+fresh one-byte fixture rather than assuming emulator `fopen("wb")` truncates.
+Actual read/write/replacement/rejection assertions still run in the Vita guest.

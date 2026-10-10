@@ -3,6 +3,12 @@
 These are checked-in snapshots. Application builds never download engine or
 JavaScript sources. Update deliberately and rerun Linux tests and both builds.
 
+The optional host emulator is not vendored: `make vita3k-setup` downloads the
+checksum-pinned official Vita3K 4154-b75d5e62 Linux x86_64 release into ignored
+`build/tools/`. Its asset ID/hash and host requirements are documented in
+[`docs/VITA3K.md`](../docs/VITA3K.md); update the pin only after a guest smoke.
+The official archive retains its upstream license and resources.
+
 ## Asciicker
 
 - Origin: https://github.com/msokalski/asciicker
@@ -11,27 +17,35 @@ JavaScript sources. Update deliberately and rerun Linux tests and both builds.
 - Upstream MIT notice: `asciicker/LICENSE`. Embedded uPNG/tinfl notices remain
   in their source files. Asset-specific attribution review is still required
   before a public release; this is a development preview.
-- Local patches: `game.cpp` routes menu exit through the portable shutdown hook
-  under `PORTABLE_SDL`; the item prototype table refreshes its sprite pointers
-  on each load so repeated scene teardown/reload does not use freed sprites.
+- Local patches: `game.cpp` routes menu exit through portable cleanup, refreshes
+  item prototype sprite pointers on reload, and delegates validated settings to
+  `src/platform/config.cpp`. Portable menus hide unsupported fixed-grid zoom and
+  Vita fullscreen, expose useful controls/credits, resume the loaded world and
+  request safe New Game teardown/reload instead of upstream's editor loader.
+  Main-menu exit cancellation uses its own stack, not the game's stack.
+  `game_api.cpp` guards absent callbacks and fixes onItem array/null detection
+  and the story-id/description output layout (story at byte 4, text at byte 8),
+  plus terminates bounded player names. `stb_vorbis.cpp` includes Vita alloca.h.
 - Excluded from compilation: desktop launcher/editor, GL/terminal/X11 backends,
-  V8 bindings, network/server implementations, and audio playback.
+  V8 bindings, network/server implementations, and desktop-specific audio.
 
-## QuickJS Vita
+## QuickJS
 
-- Origin: https://github.com/MrProcastinator/quickjs-vita
-- Revision: `2fe9a61a6ef718caabffff9f0e6385fc8f5d8c1e`
-- Runtime version: see `quickjs/VERSION`; MIT notice: `quickjs/LICENSE`.
-- Core runtime only, including libbf; no quickjs-libc, shell, filesystem helpers,
-  precompiled script toolchain, or C++ wrapper dependency.
-- Local patches in `quickjs.c`: `PORT_NO_STDIO_REDIRECT` lets the application own
-  logging; a const-correct allocator wrapper supports modern VitaSDK newlib.
-- Built on both platforms and used only by the Phase 0 compatibility probe.
-  The game scripting hooks remain explicitly disabled through Phase 2.
-- The port README's precompiled-script limitation concerns its supplied tooling;
-  our Linux core-runtime probe evaluates source successfully. Vita source
-  evaluation is cross-compiled but remains runtime-unverified unless an emulator
-  or hardware probe is explicitly recorded.
+- Origin/archive: https://bellard.org/quickjs/quickjs-2026-06-04.tar.xz
+- Runtime: **2026-06-04**, selected per the user's preference and verified on
+  the official release page. SHA-256:
+  `b376e839b322978313d929fd20663b11ba58b75df5a46c126dd19ea2fa70ad2a`.
+- Core runtime with current dtoa, replacing the earlier QuickJS Vita fork and
+  obsolete libbf. MIT notice: `quickjs/LICENSE`. No quickjs-libc, shell, worker,
+  filesystem/module loader, precompiled bytecode or C++ wrapper dependencies.
+- Local patches in `quickjs.c`: `PORT_NO_ATOMICS` excludes unsupported shared
+  atomics on both targets for a consistent single-threaded embedded API;
+  Vita includes malloc.h for newlib allocation accounting; Vita dates use UTC
+  because newlib's struct tm lacks tm_gmtoff. Shared **ordinary** ArrayBuffer
+  views and all game bindings still work. See `docs/SCRIPTING.md`.
+- Same sources and bootstrap run on Linux and actual ARM code in Vita3K;
+  evaluation, game callbacks, typed arrays, Unicode, bounds, interruption,
+  stack/memory limits and repeated teardown are exercised, not just linked.
 
 ## SDL2 / toolchains
 
