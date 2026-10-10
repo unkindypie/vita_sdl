@@ -15,13 +15,14 @@ VITA3K_FRONTEND ?= qt
 # Vita3K separates guest arguments with comma + space, not ordinary spaces.
 VITA3K_ARGS ?=
 
-.PHONY: help linux run test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
+.PHONY: help linux run test gpu-test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
 
 help:
 	@printf '%s\n' \
 	  'make linux        Build the Linux test executable in Docker' \
 	  'make run          Build in Docker and run the executable on the host' \
 	  'make test         Headless unit, integration, and launch tests in Docker' \
+	  'make gpu-test     Host accelerated glyph-vs-reference readback test (desktop required)' \
 	  'make test-asan    Run headless tests with AddressSanitizer' \
 	  'make smoke        Launch on the host, exercise movement/camera, save a BMP' \
 	  'make docker-image Build the local VitaSDK development image' \
@@ -58,6 +59,9 @@ run: linux
 test: linux
 	docker run --rm --user "$(HOST_UID):$(HOST_GID)" --volume "$(CURDIR):/workspace" \
 	  --workdir /workspace $(LINUX_DOCKER_IMAGE) make test-in-container LINUX_BUILD_DIR=$(LINUX_BUILD_DIR)
+
+gpu-test: linux
+	$(LINUX_BUILD_DIR)/gpu_presenter_tests "$(CURDIR)/assets" --accelerated
 
 test-asan:
 	$(MAKE) test LINUX_BUILD_DIR=build/linux-asan CMAKE_ARGS=-DPORT_SANITIZE=ON

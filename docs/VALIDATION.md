@@ -5,6 +5,44 @@ and Vita3K substitute for device checks; real hardware acceptance remains open.
 
 ## Current commands and outcomes
 
+### GPU atlas experiment (2026-10-10)
+
+Optional `--gpu-presenter` uses two real SDL/GXM geometry passes instead of CPU
+pixel expansion/upload. CPU scene rasterization is unchanged. It is **not** an
+all-GPU scene engine, and the CPU presenter remains the default because no
+repeatable useful end-to-end gain has been established. Full-scene migration is
+unfinished; see `GPU_RENDERING.md` for its concrete stages and dependencies.
+
+- `make test`: **6/6** pass, including actual SDL software-geometry framebuffer
+  readback vs CPU reference for all glyphs/colors, repeated frames, real atlas,
+  full grid, invalid fonts and geometry limits.
+- `make test-asan`: **6/6** pass, no sanitizer report.
+- `make gpu-test`: actual host **OpenGL accelerated=1** renderer readback is
+  byte-identical to the CPU reference; not just a geometry-construction test.
+- `make run ARGS='--smoke --frames 600 --gpu-presenter --screenshot build/linux/gpu-reference.bmp'`:
+  successful launch, movement/camera/grounded checks, script/audio and shutdown.
+  GPU mode captures are explicitly labelled CPU-reference images, not GPU proof.
+- Vita VPK builds. `make vita3k VITA3K_FRONTEND=sdl VITA3K_DIR=build/vita3k-gpu-final VITA3K_ARGS='--smoke, --frames, 600, --gpu-presenter, --verify-gameplay'`:
+  real GXM path completes `PARITY_OK`, `GAMEPLAY_CHECKS_OK`, `SMOKE_OK` and
+  `SHUTDOWN_OK`; 449 JS calls/eight injected exceptions, zero audio queue drops.
+
+Initial matched 600-frame no-harness Vita3K runs: optimized CPU median **24.54 ms**,
+GPU atlas **24.76 ms**. Final GPU repeat after removing unused CPU framebuffer
+allocations: **25.01 ms** median / **30.73 ms** p95, scene 22.59 ms, vertex
+preparation 0.61 ms, submission 1.59 ms, present 0.13 ms. Final CPU comparison
+showed host variability (27.51 ms median / 50.02 ms p95 despite similar 22.86 ms
+scene time), so that slower CPU run is not used to claim a GPU speedup.
+An uncontended CPU repeat measured **24.70 ms** median / **30.41 ms** p95,
+confirming that the final 25.01-ms GPU run did not establish an improvement.
+Both finish all 600 frames with zero JS errors, zero audio queue drops and clean
+shutdown. Individual stage medians do not add up to total median; CPU scheduling
+and event work also affect total time. Benchmarks exclude gameplay parity and
+GPU readback. Physical Vita performance remains unmeasured.
+The Qt interactive `--gpu-presenter` launch was also visually inspected via an
+actual emulator-window capture (`build/vita3k-gpu-preview/window.png`): real map,
+characters, colored CP437 glyphs and footer are visible with nearest filtering.
+This is a visual check, not an additional fixed-route performance comparison.
+
 ### CPU rendering / sharpness follow-up (2026-10-10)
 
 Matched Vita3K **SDL** runs used the pinned emulator, fresh profile directories,

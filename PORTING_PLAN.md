@@ -11,7 +11,10 @@ offline runtime, including JavaScript, audio, combat, inventory and menus;
 continue Linux/emulator validation and compare performance after JavaScript.
 Use official QuickJS 2026-06-04 on both targets. Hardware-only checks are still
 deferred under the requested Linux/emulator substitution, not implicitly passed.
-GPU work remains a measured decision gate, not a mandatory renderer rewrite.
+The user now authorizes trying GPU migration for more FPS. Optional batched GPU
+glyph presentation is implemented; it has not established a Vita3K speedup, so
+the CPU path stays default. A full GPU scene renderer remains unfinished; its
+dependencies, migration stages and adoption gates are in `docs/GPU_RENDERING.md`.
 
 Progress:
 

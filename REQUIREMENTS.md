@@ -8,8 +8,9 @@ See `PORTING_PLAN.md` and `docs/PARITY.md`.
 
 - **PORT-001:** Shared C++17 runtime through Docker/Make/CMake; separate Linux
   and Vita cross-compiled output, pinned source/toolchain inputs.
-- **PORT-002:** Preserve CPU rendering, physics, terrain/world formats, sprites
-  and ASCII-cell semantics rather than substituting a screenshot.
+- **PORT-002:** Preserve physics, terrain/world formats, sprites and ASCII-cell
+  semantics rather than substituting a screenshot. Retain the CPU rendering
+  reference while evaluating the newly authorized GPU migration.
 - **PORT-003:** Load real `game_map_y8.a3d`, meshes and sprites.
 - **PORT-004:** 120x68 cells, upstream 8x8 CP437 font/palette, 960x544 baseline;
   intentional desktop letterboxing and readable state/controls.
@@ -21,7 +22,8 @@ See `PORTING_PLAN.md` and `docs/PARITY.md`.
 - **PORT-008:** Clean teardown/reload, input reset on focus/disconnect, audio
   pause/resume; New Game resets world, inventory, JS context and callbacks.
 - **PORT-009:** Explicit offline services. Editor, multiplayer, campaign saves,
-  new content and GPU renderer rewrite remain excluded.
+  and new content remain excluded. GPU migration is now authorized separately;
+  its current experiment/remaining work is documented in `docs/GPU_RENDERING.md`.
 - **PORT-010:** Same official QuickJS 2026-06-04 on both targets. Preserve the
   synchronous `ak` API/bootstrap, shared-buffer layout, callbacks, UTF-8 and
   console. Bound memory/stack/execution and recover after errors.

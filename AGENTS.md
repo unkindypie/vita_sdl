@@ -37,6 +37,7 @@ Run repository operations through the existing Make targets:
 make linux        # Debug Linux build in the Fedora container
 make run          # Build, then run the Linux executable on the host
 make test         # Headless CTest tests in Docker
+make gpu-test     # Actual accelerated host geometry/reference parity; desktop required
 make test-asan    # Same host tests with AddressSanitizer
 make smoke        # Host launch with scripted input checks and a BMP capture
 make vita         # Release Vita build and VPK packaging in VitaSDK
@@ -115,8 +116,10 @@ API availability or runtime behavior.
   initialization). SDL is for synthetic smoke only in the pinned build: smoke
   success does not verify host keyboard/mouse forwarding. Test human input at
   the frontend boundary when changing emulator launch settings.
-- Offline gameplay, audio and QuickJS bindings are now in scope. Networking,
-  editor, campaign persistence and a replacement GPU renderer are not.
+- Offline gameplay, audio, QuickJS bindings and measured GPU rendering
+  prototypes are in scope. Networking, editor and campaign persistence are not.
+  Keep the CPU renderer/reference while GPU parity and end-to-end performance
+  are evaluated. Never label GPU glyph expansion as a GPU scene renderer.
 - Keep the official QuickJS 2026-06-04 snapshot pinned on both targets. Preserve
   shared-buffer offsets, UTF-8 boundaries, script limits, and callback teardown.
   Run scripts only on the game thread; do not expose host filesystem or shells.

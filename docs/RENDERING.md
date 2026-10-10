@@ -43,8 +43,11 @@ Streaming-texture upload uses SDL lock/unlock and copies rows using the returned
 pitch. Startup stages are recorded separately; on Vita a raw append-only stage
 file survives failures that prevent stdio from flushing.
 
-GPU glyph presentation and GPU scene rendering are explicitly deferred. Keep
-the deterministic CPU converter as a reference if either is explored later.
+Optional GPU glyph presentation now uses a batched font atlas via SDL geometry
+(`--gpu-presenter`). It is not a GPU scene renderer and is not the default:
+initial measurements did not demonstrate an end-to-end Vita3K gain. The CPU
+converter remains the deterministic reference. See [GPU migration](GPU_RENDERING.md)
+for commands, tests, backend limits and the unfinished full-scene work.
 
 ## CPU presenter optimization
 

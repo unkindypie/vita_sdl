@@ -12,7 +12,7 @@ endif()
 if(VITA)
   include("${VITASDK}/share/vita.cmake" REQUIRED)
 endif()
-find_package(SDL2 REQUIRED)
+find_package(SDL2 2.0.18 REQUIRED)
 set(ENGINE_DIR third_party/asciicker)
 add_library(asciicker_core STATIC
   ${ENGINE_DIR}/game.cpp ${ENGINE_DIR}/mainmenu.cpp ${ENGINE_DIR}/gamepad.cpp
@@ -36,7 +36,7 @@ set_source_files_properties(src/scripting/runtime.cpp src/audio/mixer.cpp
 add_library(image_codec STATIC ${ENGINE_DIR}/upng.c ${ENGINE_DIR}/tinfl.c ${ENGINE_DIR}/rgba8.cpp)
 target_include_directories(image_codec PUBLIC ${ENGINE_DIR})
 target_link_libraries(asciicker_core PUBLIC image_codec)
-add_library(ascii_presenter STATIC src/ui/cells.cpp src/platform/input.cpp)
+add_library(ascii_presenter STATIC src/ui/cells.cpp src/ui/gpu_presenter.cpp src/platform/input.cpp)
 target_include_directories(ascii_presenter PUBLIC src ${ENGINE_DIR})
 target_link_libraries(ascii_presenter PUBLIC SDL2::SDL2 image_codec)
 # Pixel conversion is a hot loop even in the developer Debug build. Retain
@@ -95,6 +95,11 @@ if(VITA)
 else()
   include(CTest)
   if(BUILD_TESTING)
+    add_executable(gpu_presenter_tests tests/gpu_presenter_tests.cpp)
+    target_link_libraries(gpu_presenter_tests PRIVATE ascii_presenter)
+    target_compile_options(gpu_presenter_tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME gpu_geometry_parity COMMAND gpu_presenter_tests "${CMAKE_SOURCE_DIR}/assets")
+    set_tests_properties(gpu_geometry_parity PROPERTIES TIMEOUT 30)
     add_test(NAME vita3k_config COMMAND ${CMAKE_COMMAND}
       -DTEST_OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/vita3k-config-test/config.yml
       -P ${CMAKE_SOURCE_DIR}/tests/vita3k_config.cmake)

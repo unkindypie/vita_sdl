@@ -8,6 +8,7 @@
 #include "audio/mixer.h"
 #include "audio.h"
 #include "ui/cells.h"
+#include "ui/gpu_presenter.h"
 #include "platform.h"
 #include <algorithm>
 #include <cmath>
@@ -41,12 +42,15 @@ struct Options {
     bool probe = false;
     bool no_js = false;
     bool verify_gameplay = false;
+    bool gpu_presenter = false;
     std::string script;
 };
 bool options(int argc, char** argv, Options& out) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--smoke") out.smoke = true;
+        else if (arg == "--gpu-presenter") out.gpu_presenter = true;
+        else if (arg == "--cpu-presenter") out.gpu_presenter = false;
         else if (arg == "--no-js") out.no_js = true;
         else if (arg == "--verify-gameplay") out.verify_gameplay = true;
         else if (arg == "--probe-js") out.probe = true;
@@ -98,7 +102,7 @@ int main(int argc, char** argv) {
     port::log_stage("boot.ready");
     Options opt;
     if (!options(argc, argv, opt)) {
-        std::fprintf(stderr, "Usage: vita_sdl2 [--assets DIR] [--manifest FILE] [--frames N] [--seconds N] [--smoke --frames 180+] [--verify-gameplay] [--script FILE | --no-js] [--screenshot FILE.bmp] [--probe-js]\n");
+        std::fprintf(stderr, "Usage: vita_sdl2 [--assets DIR] [--manifest FILE] [--frames N] [--seconds N] [--smoke --frames 180+] [--verify-gameplay] [--script FILE | --no-js] [--cpu-presenter | --gpu-presenter] [--screenshot FILE.bmp] [--probe-js]\n");
         return 2;
     }
     std::string error;
@@ -145,13 +149,24 @@ int main(int argc, char** argv) {
     if (!renderer) renderer.reset(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_SOFTWARE));
     if (!renderer) { std::fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); return 1; }
     SDL_RenderSetLogicalSize(renderer.get(), kWidth, kHeight);
-    Texture texture(SDL_CreateTexture(renderer.get(), SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, kWidth, kHeight), SDL_DestroyTexture);
-    if (!texture) { std::fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError()); return 1; }
-    if (SDL_SetTextureScaleMode(texture.get(), SDL_ScaleModeNearest) != 0) {
-        std::fprintf(stderr, "TEXTURE_FILTER_ERROR %s\n", SDL_GetError()); return 1;
+    Texture texture(nullptr, SDL_DestroyTexture);
+    if (!opt.gpu_presenter) {
+        texture.reset(SDL_CreateTexture(renderer.get(), SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, kWidth, kHeight));
+        if (!texture) { std::fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError()); return 1; }
+        if (SDL_SetTextureScaleMode(texture.get(), SDL_ScaleModeNearest) != 0) {
+            std::fprintf(stderr, "TEXTURE_FILTER_ERROR %s\n", SDL_GetError()); return 1;
+        }
     }
     SDL_RendererInfo info{};
     SDL_GetRendererInfo(renderer.get(), &info);
+    port::GpuPresenter gpu_presenter;
+    if (opt.gpu_presenter && !(info.flags & SDL_RENDERER_ACCELERATED)) {
+        port::log_stage("GPU_PRESENTER_ERROR accelerated SDL renderer unavailable; use --cpu-presenter"); return 1;
+    }
+    if (opt.gpu_presenter && !gpu_presenter.initialize(renderer.get(), font, kColumns, kRows, error)) {
+        port::log_stage(("GPU_PRESENTER_ERROR " + error).c_str()); return 1;
+    }
+    port::log_stage(opt.gpu_presenter ? "PRESENTER gpu-atlas scene=cpu" : "PRESENTER cpu-reference scene=cpu");
     std::printf("SDL_READY driver=%s renderer=%s grid=%dx%d pixels=%dx%d\n", SDL_GetCurrentVideoDriver(), info.name, kColumns, kRows, kWidth, kHeight);
     MakeStamp = now_us;
     port::reset_exit();
@@ -187,7 +202,7 @@ int main(int argc, char** argv) {
     open_controller();
     port::log_stage("controller.ready");
     std::vector<AnsiCell> cells(kColumns * kRows);
-    std::vector<uint32_t> pixels(kWidth * kHeight);
+    std::vector<uint32_t> pixels(opt.gpu_presenter ? 0 : kWidth * kHeight);
     // Rolling bounded profiling storage; safe for arbitrarily long play sessions.
     std::vector<double> scene_ms, script_ms, conversion_ms, upload_ms, present_ms, total_ms;
     for (auto* samples : {&scene_ms, &script_ms, &conversion_ms, &upload_ms, &present_ms, &total_ms}) samples->reserve(3600);
@@ -397,26 +412,35 @@ int main(int argc, char** argv) {
             rotated = rotated || std::fabs(game->prev_yaw - initial_yaw) > 1.0F;
             grounded = grounded || game->prev_grounded > 0;
         }
-        if (!port::rasterize(cells.data(), kColumns, kRows, font, pixels.data(), kWidth * 4, pixels.size() * 4)) {
+        if (opt.gpu_presenter && !gpu_presenter.prepare(cells.data(), error)) {
+            port::log_stage(("GPU_PREPARE_ERROR " + error).c_str()); return 1;
+        }
+        if (!opt.gpu_presenter && !port::rasterize(cells.data(), kColumns, kRows, font, pixels.data(), kWidth * 4, pixels.size() * 4)) {
             std::fprintf(stderr, "RASTER_ERROR\n"); return 1;
         }
         const uint64_t conversion_end = now_us();
-        void* texture_pixels = nullptr;
-        int texture_pitch = 0;
-        if (SDL_LockTexture(texture.get(), nullptr, &texture_pixels, &texture_pitch) != 0) {
-            std::fprintf(stderr, "TEXTURE_LOCK_ERROR %s\n", SDL_GetError()); return 1;
-        }
-        if (!texture_pixels || texture_pitch < kWidth * 4) {
+        if (opt.gpu_presenter) {
+            if (SDL_RenderClear(renderer.get()) != 0 || !gpu_presenter.draw(error)) {
+                port::log_stage(("GPU_DRAW_ERROR " + error + " " + SDL_GetError()).c_str()); return 1;
+            }
+        } else {
+            void* texture_pixels = nullptr;
+            int texture_pitch = 0;
+            if (SDL_LockTexture(texture.get(), nullptr, &texture_pixels, &texture_pitch) != 0) {
+                std::fprintf(stderr, "TEXTURE_LOCK_ERROR %s\n", SDL_GetError()); return 1;
+            }
+            if (!texture_pixels || texture_pitch < kWidth * 4) {
+                SDL_UnlockTexture(texture.get());
+                std::fprintf(stderr, "TEXTURE_PITCH_ERROR pitch=%d\n", texture_pitch); return 1;
+            }
+            // Streaming textures may have padded rows; never assume contiguous storage.
+            for (int row = 0; row < kHeight; ++row)
+                std::memcpy(static_cast<uint8_t*>(texture_pixels) + row * texture_pitch,
+                            pixels.data() + row * kWidth, kWidth * sizeof(uint32_t));
             SDL_UnlockTexture(texture.get());
-            std::fprintf(stderr, "TEXTURE_PITCH_ERROR pitch=%d\n", texture_pitch); return 1;
-        }
-        // Streaming textures may have padded rows; never assume contiguous storage.
-        for (int row = 0; row < kHeight; ++row)
-            std::memcpy(static_cast<uint8_t*>(texture_pixels) + row * texture_pitch,
-                        pixels.data() + row * kWidth, kWidth * sizeof(uint32_t));
-        SDL_UnlockTexture(texture.get());
-        if (SDL_RenderClear(renderer.get()) != 0 || SDL_RenderCopy(renderer.get(), texture.get(), nullptr, nullptr) != 0) {
-            std::fprintf(stderr, "PRESENT_ERROR %s\n", SDL_GetError()); return 1;
+            if (SDL_RenderClear(renderer.get()) != 0 || SDL_RenderCopy(renderer.get(), texture.get(), nullptr, nullptr) != 0) {
+                std::fprintf(stderr, "PRESENT_ERROR %s\n", SDL_GetError()); return 1;
+            }
         }
         const uint64_t upload_end = now_us();
         SDL_RenderPresent(renderer.get());
@@ -459,12 +483,15 @@ int main(int argc, char** argv) {
         }
     }
     if (!opt.screenshot.empty()) {
+        if (opt.gpu_presenter) pixels.resize(kWidth * kHeight);
+        if (opt.gpu_presenter && !port::rasterize(cells.data(), kColumns, kRows, font,
+                pixels.data(), kWidth * 4, pixels.size() * 4)) return 1;
         std::unique_ptr<SDL_Surface, decltype(&SDL_FreeSurface)> surface(SDL_CreateRGBSurfaceWithFormatFrom(
             pixels.data(), kWidth, kHeight, 32, kWidth * 4, SDL_PIXELFORMAT_ARGB8888), SDL_FreeSurface);
         if (!surface || SDL_SaveBMP(surface.get(), opt.screenshot.c_str()) != 0) {
             std::fprintf(stderr, "SCREENSHOT_ERROR %s\n", SDL_GetError()); return 1;
         }
-        std::printf("SCREENSHOT_OK %s\n", opt.screenshot.c_str());
+        std::printf("%s %s\n", opt.gpu_presenter ? "SCREENSHOT_CPU_REFERENCE_OK" : "SCREENSHOT_OK", opt.screenshot.c_str());
     }
     char report[512];
     const auto js_stats = port::script_stats();

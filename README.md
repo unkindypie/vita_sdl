@@ -33,6 +33,10 @@ Q/E rotates, X attacks, C jumps, Enter opens inventory, and Right Shift opens
 the menu. Mouse input emulates Vita touch. See [emulator controls and timed
 performance checks](docs/VITA3K.md#interactive-play-and-manual-performance-checks).
 
+Experimental GPU glyph rendering: `make vita3k VITA3K_ARGS='--gpu-presenter'`.
+The CPU scene pass remains; this prototype has not established an FPS gain and
+is not the default. See [GPU migration status and tests](docs/GPU_RENDERING.md).
+
 Non-destructive fresh build checks:
 
 ```sh
