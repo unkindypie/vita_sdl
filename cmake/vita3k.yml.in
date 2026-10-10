@@ -1,0 +1,10 @@
+# Known-working Linux emulator baseline, not Vita runtime requirements.
+initial-setup: true
+show-welcome: false
+backend-renderer: OpenGL
+hashless-texture-cache: false
+texture-cache: false
+memory-mapping: disabled
+pref-path: "@PREF_PATH@"
+log-level: 2
+discord-rich-presence: false

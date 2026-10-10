@@ -1,0 +1,6 @@
+if(NOT DEFINED OUTPUT OR NOT DEFINED PREF_PATH)
+  message(FATAL_ERROR "OUTPUT and host PREF_PATH are required")
+endif()
+get_filename_component(CONFIG_DIR "${OUTPUT}" DIRECTORY)
+file(MAKE_DIRECTORY "${CONFIG_DIR}/storage")
+configure_file("${CMAKE_CURRENT_LIST_DIR}/vita3k.yml.in" "${OUTPUT}" @ONLY)

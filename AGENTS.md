@@ -2,10 +2,10 @@
 
 ## Purpose
 
-This repository is a C++17/SDL2 starter for a PS Vita application that must
-also run on Linux for fast development and testing. Keep one shared codebase
-where practical. Linux is the primary development and automated-test target;
-the Vita build is the compatibility and packaging target.
+This repository ports Asciicker's C++17 game runtime to SDL2 on Linux and PS
+Vita. Keep one shared codebase. Linux is the development and automated-test
+target; Vita is the cross-compilation and packaging target. Follow
+`PORTING_PLAN.md` and stop at the phase authorized by the user.
 
 ## Repository map
 
@@ -16,14 +16,15 @@ the Vita build is the compatibility and packaging target.
   installed on the host.
 - `build/`: generated output. Never edit or commit it.
 - `REQUIREMENTS.md`: product scope, acceptance criteria, and delivery phases.
-
-As the project grows, prefer these boundaries:
-
-- `src/audio/`: capture adapters, buffering, and audio-domain types.
-- `src/pitch/`: platform-independent pitch estimation and smoothing.
-- `src/ui/`: SDL rendering and interaction.
-- `src/platform/`: unavoidable Linux/Vita-specific integration.
 - `tests/`: host-side unit and integration tests, mirroring source areas.
+- `assets/`: pinned upstream maps, meshes, sprites, palette, and CP437 font.
+- `third_party/`: vendored engine/QuickJS and revision/local-patch records.
+- `src/app/`: scene ownership and launcher integration.
+- `src/ui/`: platform-independent ASCII-cell presentation.
+- `src/platform/`: SDL input mapping and engine platform hooks.
+- `src/scripting/`: QuickJS compatibility probe; game bindings deferred.
+- `docs/`: feature/system documentation and recorded validation evidence.
+- `PORTING_PLAN.md`: phase checklist, decisions, and implementation progress.
 
 Do not create these directories until code actually needs them.
 
@@ -34,7 +35,13 @@ Run repository operations through the existing Make targets:
 ```sh
 make linux        # Debug Linux build in the Fedora container
 make run          # Build, then run the Linux executable on the host
+make test         # Headless CTest tests in Docker
+make test-asan    # Same host tests with AddressSanitizer
+make smoke        # Host launch with scripted input checks and a BMP capture
 make vita         # Release Vita build and VPK packaging in VitaSDK
+make verify-vpk   # Build and verify packaged manifest entries
+make vita3k       # Build/run Vita binary in emulator; set VITA3K=/path/to/Vita3K
+make vita3k-smoke # Finite guest smoke with raw stage logs and BMP capture
 make clean        # Remove generated build output
 ```
 
@@ -46,7 +53,11 @@ make clean        # Remove generated build output
 - Do not rely on undeclared host libraries, tools, or absolute local paths.
 - Pin build inputs where practical. If an image or dependency is intentionally
   floating, record the reason and verify both targets after changing it.
-- Do not commit generated binaries, CMake state, VPKs, or captured audio.
+- Do not commit generated binaries, CMake state, VPKs, logs, or debug screenshots.
+- Use the pinned upstream SDL2 GXM build in the Vita container; do not silently
+  revert to the SDK image's VitaGL SDL2 package or add shader-runtime requirements.
+- Keep source acquisition out of normal CMake builds. Container setup can fetch
+  checksum-pinned inputs. Record dependency updates in `third_party/README.md`.
 
 ## Change workflow
 
@@ -54,11 +65,14 @@ make clean        # Remove generated build output
 2. Keep the change as small as the requirement permits.
 3. Put reusable logic behind a platform-independent interface before adding
    `__vita__` branches.
-4. Run tests
-5. Build and run test on Linux during development.
+4. Run `make test` for behavior changes.
+5. Run `make run ARGS='--smoke --frames 240 --screenshot build/linux/smoke.bmp'`
+   for UI/input/integration changes; inspect logs and the resulting framebuffer.
 6. Run `make vita` whenever build files, dependencies, SDL usage, platform
    adapters, or application packaging change.
 7. Update documentation and acceptance criteria when behavior or scope changes, e.g. `./docs/` folder with file per feature/core system.
+8. Keep the phase checklist and validation results current. Do not mark deferred
+   hardware checks or later-phase features as completed.
 
 Before editing build or packaging settings, distinguish the native Linux target
 from the Vita cross-compiled target. Never assume success on Linux proves Vita
@@ -66,8 +80,8 @@ API availability or runtime behavior.
 
 ## C++ and SDL style
 
-- Use standard C++17 and the standard library unless VitaSDK compatibility has
-  been confirmed.
+- Use standard C++17 and VitaSDK-compatible standard library facilities.
+  `std::span` is C++20 and must not be used with this project's C++17 baseline.
 - Follow the existing style: four-space indentation, braces on the same line,
   `kPascalCase` constants, `PascalCase` types, and `snake_case` local variables
   and functions.
@@ -81,59 +95,56 @@ API availability or runtime behavior.
   applicable; recover when the product requirements call for it.
 - Use Vita's native 960x544 coordinate space as the UI design baseline. Scale
   or letterbox intentionally on desktop rather than maintaining unrelated UIs.
-- Keep platform conditionals at adapter boundaries. Shared pitch, smoothing,
-  history, and graph logic must not depend on SDL rendering or Vita headers.
+- Keep platform conditionals at adapter boundaries. Cell conversion, input
+  mapping, and scene integration should be host-testable. Keep upstream code
+  recognizable; document each necessary local engine patch.
+- Preserve upstream's custom controller mapping; SDL button indices are not
+  interchangeable with engine button indices.
+- Keep diagnostics bounded during unlimited sessions. Report wall-clock timings
+  separately from the synthetic simulation time used by smoke tests.
+- Engine and presenter hot loops retain `-O2` with Debug symbols. Do not judge
+  raster performance from an accidentally unoptimized Debug build. Preserve
+  exact coverage blending and unaligned/padded output tests when optimizing.
+- Use the documented OpenGL/no-hashless-cache Vita3K baseline. Its host backend
+  is independent of Vita's SDL GXM renderer. Check guest `SMOKE_OK` and clean
+  shutdown in the latest stage-log section, not only emulator process status.
+- Audio, full scripting, networking, and GPU scene rendering are outside Phase 2.
+  Disabled adapters must identify unavailable features, not imply feature parity.
 
-## Real-time audio rules
-
-- Treat the audio capture callback as real-time code: do not allocate memory,
-  perform file I/O, log, render, or take contended locks in it.
-- Move samples out of the callback through a preallocated bounded buffer. Make
-  overflow behavior explicit and observable outside the callback.
-- Carry sample rate, channel count, sample format, frame count, and timestamps
-  explicitly; do not bury them in global state.
-- Convert input to one documented internal mono sample representation before
-  pitch analysis.
-- Keep capture, pitch estimation, smoothing, and rendering independently
-  replaceable. Hardware capture must not be required to test DSP logic.
-- Bound CPU use, memory, and history length with Vita hardware as the limiting
-  target. Avoid per-frame and per-sample heap churn.
-- Never persist or transmit microphone audio unless a later requirement
-  explicitly adds it and includes clear user consent and retention behavior.
 
 ## Tests
 
 New behavior is not complete without tests at the lowest useful layer.
 
-- Add host-side tests through CMake/CTest and expose them through a `make test`
-  target when the first test is introduced. Tests must run in Docker and must
-  not require a display, microphone, Vita, network, or user input.
-- Unit-test pure logic: PCM conversion, buffering, windowing, pitch estimation,
-  confidence gating, smoothing, note/cents conversion, history sampling, and
-  graph coordinate transforms.
-- Use deterministic generated signals and small checked-in fixtures. Cover
-  silence, noise, clipped input, frequencies near supported boundaries,
-  octave-error cases, buffer wraparound, and discontinuous timestamps.
+- Use CMake/CTest through `make test`. Tests run in Docker without a display,
+  audio device, Vita, network, or user input after dependencies are installed.
+- Unit-test palette/glyph conversion, row orientation/pitch, buffer bounds,
+  controller mappings/deadzones, and asset-path/manifest behavior.
+- Exercise real map loading, rendering, input transitions, physics, and repeated
+  scene teardown. Keep tests of observable behavior rather than implementation
+  copies. Control timestamps and use tolerances for cross-architecture numerics.
 - Assert numerical results with explicit tolerances based on requirements; do
   not compare floating-point values for exact equality.
-- Keep algorithm benchmarks separate from unit tests, but track processing
-  time and allocations on representative Vita-sized frames.
-- Use an injectable fake capture source for pipeline/integration tests.
-- UI changes need a short manual Linux check. Audio or input changes also need
-  a manual Vita check on real hardware; document the device/firmware and result
-  in the change summary.
+- Keep benchmarks separate from correctness tests. Use the 120x68 cell scene
+  baseline and report simulation/render, glyph, upload, and present stages.
+- UI/input changes require a Linux host launch and log/framebuffer inspection.
+  For this implementation pass, Linux checks replace Vita runtime tests at the
+  user's request. Keep Vita compilation/VPK checks; Vita3K is supplementary.
+  Never infer hardware performance or suspend/resume correctness from Linux.
+- QuickJS probe coverage includes evaluation, native calls, shared buffers,
+  exceptions, and teardown. Full game binding tests belong to Phase 3.
 - A bug fix should include a regression test when the failure can be reproduced
   below the hardware/UI layer.
 
-Until test infrastructure exists, the minimum verification is `make linux` and
-a manual `make run` smoke test. Do not describe that as unit-test coverage.
+Record commands, outcomes, and limitations in `docs/VALIDATION.md`. Generated
+logs/screenshots remain under `build/` or `/tmp`, not in source control.
 
 ## Definition of done
 
 - The implemented behavior maps to a requirement and acceptance criterion.
 - Relevant host tests pass, and the Linux application still builds.
 - The Vita VPK builds when the change can affect cross-compilation or runtime.
-- No generated artifacts or recordings are committed.
+- No generated artifacts are committed.
 - Errors and degraded states are visible to the user where appropriate.
 - Documentation, controls, and build commands match the delivered behavior.
 
