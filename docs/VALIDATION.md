@@ -5,6 +5,28 @@ and Vita3K substitute for device checks; real hardware acceptance remains open.
 
 ## Current commands and outcomes
 
+### Softer pastel presentation (2026-10-10)
+
+- Added a shared constexpr display palette: slate instead of pure black,
+  reduced saturation and gentler highlights, without changing scene lighting,
+  glyphs, simulation or resolution. CPU final-texture scaling is linear and
+  generated Vita3K configuration uses bilinear display filtering.
+- `make test`: **6/6 pass**, including original palette preservation, graded
+  endpoints/all entries, ordered colour ramps, padded/unaligned rasterization,
+  all coverage values and software GPU/CPU parity.
+- `make gpu-test`: accelerated OpenGL framebuffer readback matches the graded
+  CPU reference exactly.
+- `make run ARGS='--smoke --frames 240 --screenshot build/linux/pastel.bmp'`:
+  `SMOKE_OK`, zero script errors/audio drops, clean shutdown. Inspected captured
+  framebuffer: muted greens, lifted dark marks, readable glyphs and HUD.
+  Median total 6.75 ms, scene 5.18 ms, glyph 0.93 ms; this single unmatched run
+  is a smoke diagnostic, not evidence of a performance change.
+- `make vita`: VPK builds successfully. Real Vita appearance remains unverified.
+- `make vita3k VITA3K_DIR=build/vita3k-pastel-preview VITA3K_ARGS='--smoke, --frames, 240'`:
+  generated configuration confirms `Bilinear`; guest logs `SMOKE_OK`, zero
+  script errors/audio drops and `SHUTDOWN_OK`. Median total 27.46 ms, glyph
+  1.70 ms (unmatched diagnostic run, not a controlled FPS comparison).
+
 ### GPU atlas experiment (2026-10-10)
 
 Optional `--gpu-presenter` uses two real SDL/GXM geometry passes instead of CPU

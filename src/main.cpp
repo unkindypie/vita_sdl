@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
     if (!opt.gpu_presenter) {
         texture.reset(SDL_CreateTexture(renderer.get(), SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, kWidth, kHeight));
         if (!texture) { std::fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError()); return 1; }
-        if (SDL_SetTextureScaleMode(texture.get(), SDL_ScaleModeNearest) != 0) {
+        if (SDL_SetTextureScaleMode(texture.get(), SDL_ScaleModeLinear) != 0) {
             std::fprintf(stderr, "TEXTURE_FILTER_ERROR %s\n", SDL_GetError()); return 1;
         }
     }

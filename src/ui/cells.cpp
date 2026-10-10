@@ -19,8 +19,27 @@ constexpr std::array<uint32_t, 256> make_palette() {
     return colors;
 }
 constexpr auto kPalette = make_palette();
+constexpr std::array<uint32_t, 256> make_display_palette() {
+    std::array<uint32_t, 256> colors{};
+    for (int i = 0; i < 256; ++i) {
+        const uint32_t rgb = kPalette[i];
+        const unsigned r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+        const unsigned luminance = (54 * r + 183 * g + 19 * b + 128) / 256;
+        uint32_t graded = 0xFF000000U;
+        for (int shift = 0; shift < 24; shift += 8) {
+            const unsigned channel = (rgb >> shift) & 255;
+            const unsigned muted = (3 * channel + luminance + 2) / 4;
+            const unsigned floor = shift == 16 ? 44 : shift == 8 ? 48 : 56;
+            graded |= (floor + (196 * muted + 127) / 255) << shift;
+        }
+        colors[i] = graded;
+    }
+    return colors;
+}
+constexpr auto kDisplayPalette = make_display_palette();
 }
 uint32_t palette_color(uint8_t index) { return kPalette[index]; }
+uint32_t display_color(uint8_t index) { return kDisplayPalette[index]; }
 bool load_font(const std::string& path, Font& font, std::string& error) {
     std::unique_ptr<upng_t, decltype(&upng_free)> png(upng_new_from_file(path.c_str()), upng_free);
     if (!png || upng_decode(png.get()) != UPNG_EOK || upng_get_width(png.get()) != 128 ||
@@ -53,7 +72,7 @@ bool rasterize(const AnsiCell* cells, int columns, int rows, const Font& font,
         for (int x = 0; x < columns; ++x) {
             // Engine cell origin is bottom-left; font atlas origin is top-left.
             const auto& cell = cells[(rows - 1 - y) * columns + x];
-            const uint32_t fg = palette_color(cell.fg), bg = palette_color(cell.bk);
+            const uint32_t fg = display_color(cell.fg), bg = display_color(cell.bk);
             for (int gy = 0; gy < 8; ++gy) {
                 auto* dest = static_cast<uint8_t*>(output) + (y * 8 + gy) * pitch + x * 32;
                 if (binary) {

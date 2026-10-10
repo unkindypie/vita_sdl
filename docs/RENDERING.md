@@ -11,10 +11,21 @@ headless tests. Vita uses upstream SDL2's native GXM backend. No desktop GL
 context, VitaGL shader compiler, editor, or GPU scene renderer is required.
 Desktop resizing uses SDL logical-size letterboxing. Two footer rows display
 controls and the current audio/script state.
-Texture scaling explicitly uses nearest-neighbor sampling. Vita3K also uses
-`Nearest` instead of its default bilinear filter, avoiding a second blur pass.
-Native 960x544 or integer-multiple windows give the most even pixel edges;
-fractional desktop scaling can still produce uneven pixel sizes.
+The presentation palette now applies a gentle pastel grade: 25% luminance
+desaturation, lifted slate shadows (RGB 44/48/56), and bounded highlights
+(240/244/252). Black terrain marks and particles become less harsh without
+removing their glyphs or changing engine lighting, visibility, or materials.
+Both CPU and GPU presenters share a constexpr lookup; there is no extra
+per-pixel grading pass. The original engine palette remains available as the
+reference `palette_color`; `display_color` provides the graded colours.
+This grade also affects HUD/text, keeping a consistent look.
+
+CPU texture scaling uses linear sampling; Vita3K uses `Bilinear` for a softer
+final display. Restart `make vita3k` to regenerate its configuration. Native
+960x544 rendering retains the original glyph coverage; filtering smooths scaled
+edges rather than reducing scene resolution. The optional GPU font atlas stays
+nearest-sampled to avoid bleeding between glyphs; emulator display smoothing
+still applies to either presenter.
 
 `make run ARGS='--smoke --frames 240 --screenshot build/linux/smoke.bmp'` exercises
 the actual SDL event path, upstream movement/physics, camera rotation, glyph

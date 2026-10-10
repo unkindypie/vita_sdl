@@ -4,7 +4,7 @@
 namespace port {
 namespace {
 SDL_Color color(uint8_t index) {
-    const uint32_t rgb = palette_color(index);
+    const uint32_t rgb = display_color(index);
     return {static_cast<uint8_t>(rgb >> 16), static_cast<uint8_t>(rgb >> 8), static_cast<uint8_t>(rgb), 255};
 }
 }

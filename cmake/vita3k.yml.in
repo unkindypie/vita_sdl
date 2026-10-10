@@ -5,8 +5,8 @@ show-welcome: false
 # Suppresses the notice only, not a firmware installation or compatibility fix.
 warn-missing-firmware: false
 backend-renderer: OpenGL
-# Preserve the 8x8 CP437 pixels when scaling the emulated display.
-screen-filter: Nearest
+# Gently smooth the final display without changing ASCII glyph coverage.
+screen-filter: Bilinear
 hashless-texture-cache: false
 texture-cache: false
 memory-mapping: disabled

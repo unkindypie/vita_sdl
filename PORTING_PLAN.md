@@ -261,6 +261,12 @@ Exit criteria:
 
 ## Performance decision gate
 
+Presentation follow-up (2026-10-10): shared CPU/GPU pastel palette and softer
+display filtering implemented at user request. Engine lighting/material indices
+and ASCII glyph coverage remain intact; no extra full-screen grading pass.
+Linux tests, accelerated rendering parity, manual framebuffer inspection and
+Vita packaging pass. See `docs/RENDERING.md` and `docs/VALIDATION.md`.
+
 Run after Phase 2 and repeat after gameplay integration if measurements change.
 
 1. Establish reproducible scenes, grid sizes, hardware settings, and per-stage
