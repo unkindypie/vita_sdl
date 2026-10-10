@@ -5,6 +5,22 @@ and Vita3K substitute for device checks; real hardware acceptance remains open.
 
 ## Current commands and outcomes
 
+Interactive frontend correction (2026-10-10): `make vita3k` now uses Qt
+**without `--console`**, with explicit controller-emulation keyboard bindings.
+Qt plus console initially crashed at `sceAudioOutOpenPort`; upstream console
+startup skips SDL initialization, so that combination is not supported here.
+The corrected launch reached audio/presentation and displayed the actual game.
+Host keyboard W changed guest position from (0,15) to (59.54,86.66), with no
+synthetic smoke controls enabled. The user subsequently confirmed manual input
+was working. Mouse forwarding is provided by Qt's touch handlers; no separate
+automated mouse assertion was completed in this pass. Host CTest now passes
+**5/5**, including generated emulator config/key-binding regression coverage;
+Vita VPK build passes. SDL smoke remains explicitly selected by `vita3k-smoke`;
+the supplementary run this pass ended before guest `SMOKE_OK`, so its host
+zero exit code is **not** recorded as a new complete smoke pass. Earlier complete
+SDL smoke results below remain historical evidence. No uncontended Qt performance
+baseline or real-device performance claim is made.
+
 Project-managed emulator setup (2026-10-10): `make vita3k-setup` fetched
 official asset 625596737 into `build/tools/vita3k/` and passed SHA-256 validation.
 A subsequent setup reused the installed emulator without downloading. A missing

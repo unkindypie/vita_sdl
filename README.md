@@ -28,6 +28,11 @@ make vita3k-smoke # automatic emulator setup, finite smoke of ARM/Vita build
 make clean       # remove generated build output
 ```
 
+For manual emulator play, run `make vita3k` and focus the game window. WASD moves,
+Q/E rotates, X attacks, C jumps, Enter opens inventory, and Right Shift opens
+the menu. Mouse input emulates Vita touch. See [emulator controls and timed
+performance checks](docs/VITA3K.md#interactive-play-and-manual-performance-checks).
+
 Non-destructive fresh build checks:
 
 ```sh

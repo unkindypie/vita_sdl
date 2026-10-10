@@ -1,6 +1,9 @@
 # Known-working Linux emulator baseline, not Vita runtime requirements.
 initial-setup: true
 show-welcome: false
+# This homebrew uses its own font/assets; do not prompt on every generated config.
+# Suppresses the notice only, not a firmware installation or compatibility fix.
+warn-missing-firmware: false
 backend-renderer: OpenGL
 hashless-texture-cache: false
 texture-cache: false
@@ -8,3 +11,24 @@ memory-mapping: disabled
 pref-path: "@PREF_PATH@"
 log-level: 2
 discord-rich-presence: false
+# Explicit physical-key mappings, independent of a user's global emulator setup.
+keyboard-leftstick-up: KeyW
+keyboard-leftstick-left: KeyA
+keyboard-leftstick-down: KeyS
+keyboard-leftstick-right: KeyD
+keyboard-button-up: ArrowUp
+keyboard-button-left: ArrowLeft
+keyboard-button-down: ArrowDown
+keyboard-button-right: ArrowRight
+keyboard-button-l1: KeyQ
+keyboard-button-r1: KeyE
+keyboard-rightstick-left: KeyJ
+keyboard-rightstick-right: KeyL
+keyboard-button-cross: KeyX
+keyboard-button-circle: KeyC
+keyboard-button-square: KeyZ
+keyboard-button-triangle: KeyV
+keyboard-button-start: Enter
+keyboard-button-select: ShiftRight
+keyboard-gui-toggle-touch: KeyT
+keyboard-gui-fullscreen: F11

@@ -110,6 +110,10 @@ API availability or runtime behavior.
 - Use the documented OpenGL/no-hashless-cache Vita3K baseline. Its host backend
   is independent of Vita's SDL GXM renderer. Check guest `SMOKE_OK` and clean
   shutdown in the latest stage-log section, not only emulator process status.
+- Interactive Vita3K uses Qt without `--console` (console skips its audio/pad
+  initialization). SDL is for synthetic smoke only in the pinned build: smoke
+  success does not verify host keyboard/mouse forwarding. Test human input at
+  the frontend boundary when changing emulator launch settings.
 - Offline gameplay, audio and QuickJS bindings are now in scope. Networking,
   editor, campaign persistence and a replacement GPU renderer are not.
 - Keep the official QuickJS 2026-06-04 snapshot pinned on both targets. Preserve

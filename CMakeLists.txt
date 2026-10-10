@@ -93,6 +93,9 @@ if(VITA)
 else()
   include(CTest)
   if(BUILD_TESTING)
+    add_test(NAME vita3k_config COMMAND ${CMAKE_COMMAND}
+      -DTEST_OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/vita3k-config-test/config.yml
+      -P ${CMAKE_SOURCE_DIR}/tests/vita3k_config.cmake)
     add_executable(port_tests tests/port_tests.cpp)
     target_link_libraries(port_tests PRIVATE asciicker_core ascii_presenter script_probe)
     add_test(NAME port_unit_and_scene COMMAND port_tests "${CMAKE_SOURCE_DIR}/assets"

@@ -1,5 +1,11 @@
 # Controls
 
+For `make vita3k`, use the emulator's controller-emulation keys, **not** the Linux
+column below: WASD/arrows move, Q/E rotate, X attacks, C jumps, Enter opens
+inventory, Z equips, V picks up, Right Shift opens the menu. Click the game
+window to focus it. Mouse drag is Vita front touch. See [emulator controls and
+manual performance runs](VITA3K.md#interactive-play-and-manual-performance-checks).
+
 | Action | Linux | Vita / SDL controller |
 | --- | --- | --- |
 | Move | WASD / arrows | Left stick; D-pad outside inventory/menu |

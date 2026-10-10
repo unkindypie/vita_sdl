@@ -10,6 +10,8 @@ ARGS ?=
 CMAKE_ARGS ?=
 VITA3K ?= $(CURDIR)/build/tools/vita3k/Vita3K
 VITA3K_DIR ?= build/vita3k
+# Qt forwards host keyboard/mouse; pinned SDL frontend only supports pads/touch.
+VITA3K_FRONTEND ?= qt
 # Vita3K separates guest arguments with comma + space, not ordinary spaces.
 VITA3K_ARGS ?=
 
@@ -102,12 +104,13 @@ vita3k: vita3k-setup
 	  --workdir /workspace $(DOCKER_IMAGE) cmake \
 	  -DOUTPUT=/workspace/$(VITA3K_DIR)/config.yml \
 	  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -P cmake/prepare_vita3k.cmake
-	"$(VITA3K)" --frontend sdl --console --load-config \
+# In this emulator build --console skips Qt's SDL audio/controller init.
+	"$(VITA3K)" --frontend "$(VITA3K_FRONTEND)" $(if $(filter sdl,$(VITA3K_FRONTEND)),--console,) --load-config \
 	  --config-location "$(CURDIR)/$(VITA3K_DIR)/config.yml" --keep-config \
 	  --app-args '$(VITA3K_ARGS)' "$(CURDIR)/$(VITA_BUILD_DIR)/$(PROJECT).vpk"
 
 vita3k-smoke:
-	$(MAKE) vita3k VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
+	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
 
 clean:
 	$(RM) -r $(BUILD_DIR)

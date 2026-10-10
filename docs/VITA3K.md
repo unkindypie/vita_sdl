@@ -4,7 +4,7 @@ Vita3K is a host debugging tool, not an application dependency. On Linux x86_64,
 the project downloads the tested official binary automatically, verifies its
 SHA-256, and extracts it to ignored `build/tools/vita3k/`. No `/tmp` installation,
 source clone, or PATH change is needed. These commands build the VPK, generate
-a known-working config, and install/run it with the SDL frontend:
+a known-working config, and install/run it:
 
 ```sh
 make vita3k-setup # optional: download/check without compiling the game
@@ -13,6 +13,51 @@ make vita3k-smoke
 # Optional fresh, isolated install (does not remove existing emulator data):
 make vita3k-smoke VITA3K_DIR=build/vita3k-fresh
 ```
+
+## Interactive play and manual performance checks
+
+`make vita3k` uses the **Qt frontend**. Click the **Asciicker Vita game window**
+(not the emulator library window) to focus it. Keyboard input emulates a Vita
+controller; it is not the native Linux application's keyboard layout:
+
+| Action | Host key |
+| --- | --- |
+| Move | WASD or arrow keys |
+| Camera | Q/E or J/L |
+| Attack / confirm | X (Vita Cross) |
+| Jump | C (Vita Circle) |
+| Inventory | Enter (Vita Start) |
+| Equip/use | Z (Vita Square) |
+| Pick up | V (Vita Triangle) |
+| Menu | Right Shift (Vita Select) |
+| Navigate menus/inventory | Arrow keys |
+| Controller text keyboard | Hold Right Shift, press Enter |
+| Fullscreen | F11 |
+
+Left mouse press/drag/release emulates front-screen touch, including the engine's
+touch UI; it is not a desktop mouse-look control. T switches front/rear touch:
+leave it on front touch for this app. Use the in-game Exit confirmation to end
+a session cleanly and flush the final performance summary.
+
+Normal launches have JavaScript/audio enabled and no synthetic controls or parity
+harness. For a timed session (ordinary real-time simulation, manual input):
+
+```sh
+make vita3k VITA3K_ARGS='--seconds, 120'
+# Matched JavaScript-disabled comparison:
+make vita3k VITA3K_ARGS='--seconds, 120, --no-js'
+```
+
+Inspect the latest session's `PROFILE` and `SCRIPT_PROFILE` entries in the stage
+log below. Match camera/route/settings and minimize host contention. Qt frontend
+timings are a separate baseline from historical SDL smoke results; neither
+measures real Vita hardware performance.
+
+`make vita3k-smoke` deliberately uses the SDL frontend with synthetic in-game
+input. In pinned build 4154, that frontend does **not** forward host keyboard
+gameplay input or mouse clicks; passing that smoke does not validate human input.
+Do not add `--console` to Qt launches: this emulator version skips SDL audio/pad
+initialization in console mode and crashes when the game opens an audio port.
 
 Setup requires host `curl`, `unzip`, `sha256sum` (coreutils), and `ldd`.
 The official binary also requires desktop libraries even with the SDL frontend:
@@ -29,6 +74,9 @@ ones. A working desktop/GPU driver and sufficiently recent glibc are still
 required; arbitrary distributions and architectures are not guaranteed. Other
 emulator installations can opt out of download with `VITA3K=/path/to/Vita3K`.
 No system packages, firmware, or commercial games are automatically installed.
+The project config sets `warn-missing-firmware: false` to suppress the repeated
+Qt firmware/font-package popup for this homebrew. This only hides the warning;
+it does not install those packages or make other games firmware-independent.
 
 The pin is official build **4154-b75d5e62**, release asset **625596737**,
 SHA-256 `ec24d71a6c75db3eb1a03ceef20ca0f241cac59f28669dd5315172713c054d35`.
