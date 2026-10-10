@@ -147,6 +147,9 @@ int main(int argc, char** argv) {
     SDL_RenderSetLogicalSize(renderer.get(), kWidth, kHeight);
     Texture texture(SDL_CreateTexture(renderer.get(), SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, kWidth, kHeight), SDL_DestroyTexture);
     if (!texture) { std::fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError()); return 1; }
+    if (SDL_SetTextureScaleMode(texture.get(), SDL_ScaleModeNearest) != 0) {
+        std::fprintf(stderr, "TEXTURE_FILTER_ERROR %s\n", SDL_GetError()); return 1;
+    }
     SDL_RendererInfo info{};
     SDL_GetRendererInfo(renderer.get(), &info);
     std::printf("SDL_READY driver=%s renderer=%s grid=%dx%d pixels=%dx%d\n", SDL_GetCurrentVideoDriver(), info.name, kColumns, kRows, kWidth, kHeight);

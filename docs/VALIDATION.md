@@ -5,6 +5,55 @@ and Vita3K substitute for device checks; real hardware acceptance remains open.
 
 ## Current commands and outcomes
 
+### CPU rendering / sharpness follow-up (2026-10-10)
+
+Matched Vita3K **SDL** runs used the pinned emulator, fresh profile directories,
+120x68 cells, JavaScript/audio enabled, seed 1, synthetic 16,667-us simulation
+steps and 600 frames, **without** the intrusive gameplay harness:
+
+```sh
+make vita3k VITA3K_FRONTEND=sdl VITA3K_DIR=build/vita3k-perf-floor \
+  VITA3K_ARGS='--smoke, --frames, 600, --screenshot, ux0:data/asciicker/perf.bmp'
+```
+
+| Wall-clock stage (ms) | Before | Final |
+| --- | ---: | ---: |
+| Total median | 28.09 | 24.54 |
+| Total p95 | 34.77 | 30.21 |
+| Scene median | 23.14 | 22.46 |
+| Glyph conversion median | 4.50 | 1.66 |
+
+This is about **13% lower median frame time / 14% higher median-equivalent
+throughput**, not a guarantee of that gain in every scene or Qt's displayed FPS.
+An intermediate run before the floor conversion measured 25.66 ms total median
+and 23.57 ms scene median; compiler settings alone did not establish a scene
+speedup. Final JavaScript median/p95: 0.020/0.046 ms, 603 calls, zero errors;
+zero audio queue drops. Final run: `SMOKE_OK`, clean shutdown, 15.5 seconds.
+Final/baseline Vita framebuffer SHA-256 are identical:
+`64da4c90cb590e57f601c9b2141ff4971d75be8758d42f1f1c0315f91e92209e`.
+
+Linux before/final fixed-route framebuffers are also byte-identical:
+`15eedfe29544ad840c77a404f23041f599424eae8e1a330d70eb80125e9f9687`.
+Linux total median was 6.10 ms before / 6.13 ms final: **no desktop speedup
+claim**. The branchless converter trades a host glyph regression (0.55 to
+0.93 ms) for a much larger ARM/JIT improvement. A contended 8.72-ms desktop
+run during the sanitizer rebuild is excluded. Results are individual measured
+runs, not a statistical hardware performance certification.
+
+`make test` and `make test-asan` pass **5/5** after the final floor conversion,
+including full palette/binary-frame/unaligned/padding comparisons, all alpha
+values and float/double floor boundaries. Vita builds/packages successfully.
+Final `make vita3k-smoke VITA3K_DIR=build/vita3k-perf-parity` completes actual
+guest combat/inventory/menu/JS/audio checks, `SMOKE_OK` and `SHUTDOWN_OK`:
+449 script calls, eight intentionally injected errors, zero audio drops. Its
+29.67-ms median includes the harness/reload and is not a performance comparison.
+
+Both SDL texture filtering and the emulator display filter now explicitly use
+nearest-neighbor sampling; the native cell resolution/font/assets are unchanged.
+The Qt frontend reports `Nearest`. Host-vsync changes were explored but not
+retained: no isolated gameplay benefit was established. No new 60-FPS or real
+Vita hardware claim is made; CPU scene rendering remains dominant.
+
 Interactive frontend correction (2026-10-10): `make vita3k` now uses Qt
 **without `--console`**, with explicit controller-emulation keyboard bindings.
 Qt plus console initially crashed at `sceAudioOutOpenPort`; upstream console

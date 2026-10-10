@@ -5,13 +5,22 @@
 #include <cstring>
 #include <memory>
 namespace port {
-uint32_t palette_color(uint8_t index) {
+namespace {
+constexpr uint32_t cube_color(int index) {
     // Match upstream term.cpp Pal(): clamp to the 6x6x6 RGB cube.
     const int value = std::clamp(static_cast<int>(index) - 16, 0, 215);
     return 0xFF000000U | static_cast<uint32_t>((value / 36) * 51) << 16 |
            static_cast<uint32_t>(((value / 6) % 6) * 51) << 8 |
            static_cast<uint32_t>((value % 6) * 51);
 }
+constexpr std::array<uint32_t, 256> make_palette() {
+    std::array<uint32_t, 256> colors{};
+    for (int i = 0; i < 256; ++i) colors[i] = cube_color(i);
+    return colors;
+}
+constexpr auto kPalette = make_palette();
+}
+uint32_t palette_color(uint8_t index) { return kPalette[index]; }
 bool load_font(const std::string& path, Font& font, std::string& error) {
     std::unique_ptr<upng_t, decltype(&upng_free)> png(upng_new_from_file(path.c_str()), upng_free);
     if (!png || upng_decode(png.get()) != UPNG_EOK || upng_get_width(png.get()) != 128 ||
@@ -37,6 +46,9 @@ bool rasterize(const AnsiCell* cells, int columns, int rows, const Font& font,
     if (!cells || !output || columns < 1 || columns > 160 || rows < 1 || rows > 160) return false;
     const auto row_bytes = static_cast<std::size_t>(columns) * 8 * sizeof(uint32_t);
     if (pitch < row_bytes || output_size / pitch < static_cast<std::size_t>(rows) * 8) return false;
+    // One small scan replaces half a million unpredictable per-pixel branches.
+    // Do not cache by address: callers/tests may change an atlas in place.
+    const bool binary = std::all_of(font.begin(), font.end(), [](uint8_t a) { return a == 0 || a == 255; });
     for (int y = 0; y < rows; ++y) {
         for (int x = 0; x < columns; ++x) {
             // Engine cell origin is bottom-left; font atlas origin is top-left.
@@ -44,6 +56,16 @@ bool rasterize(const AnsiCell* cells, int columns, int rows, const Font& font,
             const uint32_t fg = palette_color(cell.fg), bg = palette_color(cell.bk);
             for (int gy = 0; gy < 8; ++gy) {
                 auto* dest = static_cast<uint8_t*>(output) + (y * 8 + gy) * pitch + x * 32;
+                if (binary) {
+                    uint32_t scanline[8];
+                    const auto* coverage = font.data() + cell.gl * 64 + gy * 8;
+                    // Exact foreground/background selection, amenable to SIMD.
+                    // memcpy retains support for unaligned and padded output.
+                    for (int gx = 0; gx < 8; ++gx)
+                        scanline[gx] = bg ^ ((fg ^ bg) & (0U - static_cast<uint32_t>(coverage[gx] == 255)));
+                    std::memcpy(dest, scanline, sizeof(scanline));
+                    continue;
+                }
                 for (int gx = 0; gx < 8; ++gx) {
                     const unsigned alpha = font[cell.gl * 64 + gy * 8 + gx];
                     // CP437 is normally binary coverage. Preserve exact blending

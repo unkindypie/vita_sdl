@@ -21,6 +21,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <float.h>
+#include "ui/raster_math.h"
 #include <string.h>
 
 #ifdef min // thanks windows
@@ -75,7 +76,7 @@ inline void Bresenham(Sample* buf, int w, int h, int from[3], int to[3], int _or
 		for (int x = x0; x < x1; x+=2)
 		{
 			float a = x - from[0] + 0.5f;
-			int y = (int)floor((a * sy)*n + from[1] + 0.5f);
+			int y = port::floor_to_int((a * sy)*n + from[1] + 0.5f);
 			if (y >= 0 && y < h)
 			{
 				float z = (a * sz) * n + from[2];
@@ -106,7 +107,7 @@ inline void Bresenham(Sample* buf, int w, int h, int from[3], int to[3], int _or
 		for (int y = y0; y < y1; y++)
 		{
 			int a = y - from[1];
-			int x = (int)floor((a * sx) * n + from[0] + 0.5f);
+			int x = port::floor_to_int((a * sx) * n + from[0] + 0.5f);
 			if (x >= 0 && x < w)
 			{
 				float z = (a * sz)*n + from[2];
@@ -150,7 +151,7 @@ inline void PerspectiveCorrectCellLine(/*const*/Sample* smp, AnsiCell* buf, int 
 		for (int x = x0; x < x1; x++)
 		{
 			float a = x - from[0] + 0.5f;
-			int y = (int)floor((a * sy)*n + from[1] + 0.5f);
+			int y = port::floor_to_int((a * sy)*n + from[1] + 0.5f);
 			if (y >= 0 && y < h)
 			{
 				int hx = 2 * x + 2;
@@ -190,7 +191,7 @@ inline void PerspectiveCorrectCellLine(/*const*/Sample* smp, AnsiCell* buf, int 
 		for (int y = y0; y < y1; y++)
 		{
 			int a = y - from[1];
-			int x = (int)floor((a * sx) * n + from[0] + 0.5f);
+			int x = port::floor_to_int((a * sx) * n + from[0] + 0.5f);
 			if (x >= 0 && x < w)
 			{
 				int hx = 2 * x + 2;
@@ -246,7 +247,7 @@ inline void CellLine(/*const*/Sample* smp, AnsiCell* buf, int w, int h, int from
 		for (int x = x0; x < x1; x++)
 		{
 			float a = x - from[0] + 0.5f;
-			int y = (int)floor((a * sy)*n + from[1] + 0.5f);
+			int y = port::floor_to_int((a * sy)*n + from[1] + 0.5f);
 			if (y >= 0 && y < h)
 			{
 				int hx = 2 * x + 2;
@@ -283,7 +284,7 @@ inline void CellLine(/*const*/Sample* smp, AnsiCell* buf, int w, int h, int from
 		for (int y = y0; y < y1; y++)
 		{
 			int a = y - from[1];
-			int x = (int)floor((a * sx) * n + from[0] + 0.5f);
+			int x = port::floor_to_int((a * sx) * n + from[0] + 0.5f);
 			if (x >= 0 && x < w)
 			{
 				int hx = 2 * x + 2;
@@ -579,13 +580,13 @@ int auto_mat_result = create_auto_mat(auto_mat);
 static int create_auto_mat(uint8_t mat[])
 {
 	/*
-	#define FLO(x) ((int)floor(5 * x / 31.0f))
+	#define FLO(x) (port::floor_to_int(5 * x / 31.0f))
 	#define REM(x) (5*x-31*flo[x])
 	*/
 
 	#define MCV 5
 	#define MCV_TO_5(mcv) (((mcv) * 5 + MCV/2) / MCV)
-	#define FLO(x) ((int)floor(MCV * x / 31.0f))
+	#define FLO(x) (port::floor_to_int(MCV * x / 31.0f))
 	#define REM(x) (MCV*x-31*flo[x])
 
 	static const int flo[32] =
@@ -725,11 +726,11 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 						else
 							s->height = z;
 
-						int r8 = (int)floor(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
+						int r8 = port::floor_to_int(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
 						int r5 = (r8 * 249 + 1014) >> 11;
-						int g8 = (int)floor(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
+						int g8 = port::floor_to_int(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
 						int g5 = (g8 * 249 + 1014) >> 11;
-						int b8 = (int)floor(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
+						int b8 = port::floor_to_int(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
 						int b5 = (b8 * 249 + 1014) >> 11;
 
 						s->visual = r5 | (g5 << 5) | (b5 << 10);
@@ -746,11 +747,11 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 						else
 							s->height = z;
 
-						int r8 = (int)floor(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
+						int r8 = port::floor_to_int(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
 						int r5 = (r8 * 249 + 1014) >> 11;
-						int g8 = (int)floor(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
+						int g8 = port::floor_to_int(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
 						int g5 = (g8 * 249 + 1014) >> 11;
-						int b8 = (int)floor(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
+						int b8 = port::floor_to_int(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
 						int b5 = (b8 * 249 + 1014) >> 11;
 
 						s->visual = r5 | (g5 << 5) | (b5 << 10);
@@ -766,11 +767,11 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 		{
 			if (s->height < water)
 			{
-				int r8 = (int)floor(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
+				int r8 = port::floor_to_int(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
 				int r5 = (r8 * 249 + 1014) >> 11;
-				int g8 = (int)floor(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
+				int g8 = port::floor_to_int(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
 				int g5 = (g8 * 249 + 1014) >> 11;
-				int b8 = (int)floor(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
+				int b8 = port::floor_to_int(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
 				int b5 = (b8 * 249 + 1014) >> 11;
 
 				s->visual = r5 | (g5 << 5) | (b5 << 10);
@@ -783,11 +784,11 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 		{
 			if (s->height >= water)
 			{
-				int r8 = (int)floor(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
+				int r8 = port::floor_to_int(rgb[0][0] * bc[0] + rgb[1][0] * bc[1] + rgb[2][0] * bc[2]);
 				int r5 = (r8 * 249 + 1014) >> 11;
-				int g8 = (int)floor(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
+				int g8 = port::floor_to_int(rgb[0][1] * bc[0] + rgb[1][1] * bc[1] + rgb[2][1] * bc[2]);
 				int g5 = (g8 * 249 + 1014) >> 11;
-				int b8 = (int)floor(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
+				int b8 = port::floor_to_int(rgb[0][2] * bc[0] + rgb[1][2] * bc[1] + rgb[2][2] * bc[2]);
 				int b5 = (b8 * 249 + 1014) >> 11;
 
 				s->visual = r5 | (g5 << 5) | (b5 << 10);
@@ -857,7 +858,7 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 
 				v[0][0] = tx;
 				v[0][1] = ty;
-				v[0][2] = (int)floor(tmp0[2] + 0.5f);
+				v[0][2] = port::floor_to_int(tmp0[2] + 0.5f);
 				v[0][3] = 0; // clip flags
 			}
 			else
@@ -865,9 +866,9 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 		}
 		else //#else
 		{
-			v[0][0] = (int)floor(tmp0[0] + 0.5f);
-			v[0][1] = (int)floor(tmp0[1] + 0.5f);
-			v[0][2] = (int)floor(tmp0[2] + 0.5f);
+			v[0][0] = port::floor_to_int(tmp0[0] + 0.5f);
+			v[0][1] = port::floor_to_int(tmp0[1] + 0.5f);
+			v[0][2] = port::floor_to_int(tmp0[2] + 0.5f);
 			v[0][3] = 0; // clip flags
 		} //#endif
 	}
@@ -904,7 +905,7 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 
 				v[1][0] = tx;
 				v[1][1] = ty;
-				v[1][2] = (int)floor(tmp1[2] + 0.5f);
+				v[1][2] = port::floor_to_int(tmp1[2] + 0.5f);
 				v[1][3] = 0; // clip flags
 			}
 			else
@@ -912,9 +913,9 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 		}
 		else // #else
 		{
-			v[1][0] = (int)floor(tmp1[0] + 0.5f);
-			v[1][1] = (int)floor(tmp1[1] + 0.5f);
-			v[1][2] = (int)floor(tmp1[2] + 0.5f);
+			v[1][0] = port::floor_to_int(tmp1[0] + 0.5f);
+			v[1][1] = port::floor_to_int(tmp1[1] + 0.5f);
+			v[1][2] = port::floor_to_int(tmp1[2] + 0.5f);
 			v[1][3] = 0; // clip flags
 		} //#endif
 	}
@@ -957,7 +958,7 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 
 				v[2][0] = tx;
 				v[2][1] = ty;
-				v[2][2] = (int)floor(tmp2[2] + 0.5f);
+				v[2][2] = port::floor_to_int(tmp2[2] + 0.5f);
 				v[2][3] = 0; // clip flags
 			}
 			else
@@ -965,9 +966,9 @@ void Renderer::RenderFace(float coords[9], uint8_t colors[12], uint32_t visual, 
 		}
 		else // #else
 		{
-			v[2][0] = (int)floor(tmp2[0] + 0.5f);
-			v[2][1] = (int)floor(tmp2[1] + 0.5f);
-			v[2][2] = (int)floor(tmp2[2] + 0.5f);
+			v[2][0] = port::floor_to_int(tmp2[0] + 0.5f);
+			v[2][1] = port::floor_to_int(tmp2[1] + 0.5f);
+			v[2][2] = port::floor_to_int(tmp2[2] + 0.5f);
 			v[2][3] = 0; // clip flags
 		} // #endif
 	}
@@ -1244,8 +1245,8 @@ void Renderer::RenderSprite(Inst* inst, Sprite* s, float pos[3], float yaw, int 
 		{
 			//if (r->int_flag)
 			{
-				int tx = (int)floor(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
-				int ty = (int)floor(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
+				int tx = port::floor_to_int(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
+				int ty = port::floor_to_int(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
 
 				// convert from samples to cells
 				buf->s_pos[0] = (tx - 1) >> 1;
@@ -1255,8 +1256,8 @@ void Renderer::RenderSprite(Inst* inst, Sprite* s, float pos[3], float yaw, int 
 			/*
 			else
 			{
-				int tx = (int)floor(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5) + r->add[0];
-				int ty = (int)floor(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5) + r->add[1];
+				int tx = port::floor_to_int(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5) + r->add[0];
+				int ty = port::floor_to_int(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5) + r->add[1];
 
 				// convert from samples to cells
 				buf->s_pos[0] = (tx - 1) >> 1;
@@ -1315,8 +1316,8 @@ void Renderer::RenderSprite(Inst* inst, Sprite* s, float pos[3], float yaw, int 
 		{
 			//if (r->int_flag)
 			{
-				int tx = (int)floor(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
-				int ty = (int)floor(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
+				int tx = port::floor_to_int(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
+				int ty = port::floor_to_int(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
 
 				// convert from samples to cells
 				buf->s_pos[0] = (tx - 1) >> 1;
@@ -1326,8 +1327,8 @@ void Renderer::RenderSprite(Inst* inst, Sprite* s, float pos[3], float yaw, int 
 			/*
 			else
 			{
-				int tx = (int)floor(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5) + r->add[0];
-				int ty = (int)floor(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5) + r->add[1];
+				int tx = port::floor_to_int(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5) + r->add[0];
+				int ty = port::floor_to_int(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5) + r->add[1];
 
 				// convert from samples to cells
 				buf->s_pos[0] = (tx - 1) >> 1;
@@ -1338,7 +1339,7 @@ void Renderer::RenderSprite(Inst* inst, Sprite* s, float pos[3], float yaw, int 
 		} // #endif
 	}
 
-	int ang = (int)floor((yaw - r->yaw) * s->angles / 360.0f + 0.5f);
+	int ang = port::floor_to_int((yaw - r->yaw) * s->angles / 360.0f + 0.5f);
 	ang = ang >= 0 ? ang % s->angles : (ang % s->angles + s->angles) % s->angles;
 	
 	buf->sprite = s;
@@ -1410,8 +1411,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 						else
 							s->height = z;
 
-						int u = (int)floor(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
-						int v = (int)floor(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
+						int u = port::floor_to_int(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
+						int v = port::floor_to_int(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
 
 						/*
 						if (u >= VISUAL_CELLS || v >= VISUAL_CELLS)
@@ -1438,8 +1439,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 						else
 							s->height = z;
 
-						int u = (int)floor(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
-						int v = (int)floor(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
+						int u = port::floor_to_int(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
+						int v = port::floor_to_int(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
 
 						/*
 						if (u >= VISUAL_CELLS || v >= VISUAL_CELLS)
@@ -1487,8 +1488,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 		{
 			if (s->height < water)
 			{
-				int u = (int)floor(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
-				int v = (int)floor(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
+				int u = port::floor_to_int(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
+				int v = port::floor_to_int(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
 
 				if (u >= VISUAL_CELLS || v >= VISUAL_CELLS)
 				{
@@ -1508,8 +1509,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 		{
 			if (s->height >= water)
 			{
-				int u = (int)floor(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
-				int v = (int)floor(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
+				int u = port::floor_to_int(uv[0] * bc[0] + uv[2] * bc[1] + uv[4] * bc[2]);
+				int v = port::floor_to_int(uv[1] * bc[0] + uv[3] * bc[1] + uv[5] * bc[2]);
 
 				if (u >= VISUAL_CELLS || v >= VISUAL_CELLS)
 				{
@@ -1626,8 +1627,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 				{
 					if (r->int_flag)
 					{
-						int tx = (int)floor(mul[0] * vx + mul[2] * vy + 0.5 + add[0]);
-						int ty = (int)floor(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5 + add[1]);
+						int tx = port::floor_to_int(mul[0] * vx + mul[2] * vy + 0.5 + add[0]);
+						int ty = port::floor_to_int(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5 + add[1]);
 
 						xyzf[dy][dx][0] = tx;
 						xyzf[dy][dx][1] = ty;
@@ -1639,8 +1640,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 					}
 					else
 					{
-						int tx = (int)floor(mul[0] * vx + mul[2] * vy + 0.5) + iadd[0];
-						int ty = (int)floor(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5) + iadd[1];
+						int tx = port::floor_to_int(mul[0] * vx + mul[2] * vy + 0.5) + iadd[0];
+						int ty = port::floor_to_int(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5) + iadd[1];
 
 						xyzf[dy][dx][0] = tx;
 						xyzf[dy][dx][1] = ty;
@@ -1703,8 +1704,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 					// transform 
 					if (r->int_flag)
 					{
-						int tx = (int)floor(mul[0] * vx + mul[2] * vy + 0.5 + add[0]);
-						int ty = (int)floor(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5 + add[1]);
+						int tx = port::floor_to_int(mul[0] * vx + mul[2] * vy + 0.5 + add[0]);
+						int ty = port::floor_to_int(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5 + add[1]);
 
 						xyzf[dy][dx][0] = tx;
 						xyzf[dy][dx][1] = ty;
@@ -1716,8 +1717,8 @@ void Renderer::RenderPatch(Patch* p, int x, int y, int view_flags, void* cookie 
 					}
 					else
 					{
-						int tx = (int)floor(mul[0] * vx + mul[2] * vy + 0.5) + iadd[0];
-						int ty = (int)floor(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5) + iadd[1];
+						int tx = port::floor_to_int(mul[0] * vx + mul[2] * vy + 0.5) + iadd[0];
+						int ty = port::floor_to_int(mul[1] * vx + mul[3] * vy + mul[5] * vz + 0.5) + iadd[1];
 
 						xyzf[dy][dx][0] = tx;
 						xyzf[dy][dx][1] = ty;
@@ -2777,7 +2778,7 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 	*/
 
 	// water integerificator (there's 4 instead of 2 because reflection goes 2x faster than water)
-	int water_i = (int)floor(water / (HEIGHT_SCALE / (4 * ds * cos30)));
+	int water_i = port::floor_to_int(water / (HEIGHT_SCALE / (4 * ds * cos30)));
 	water = (float)(water_i * (HEIGHT_SCALE / (4 * ds * cos30)));
 
 	r->water = water;
@@ -2820,8 +2821,8 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 
 	if (r->int_flag)
 	{
-		int x = (int)floor(r->add[0] + 0.5);
-		int y = (int)floor(r->add[1] + 0.5);
+		int x = port::floor_to_int(r->add[0] + 0.5);
+		int y = port::floor_to_int(r->add[1] + 0.5);
 
 		#ifdef DBL
 		x &= ~1;
@@ -3097,8 +3098,8 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 
 	if (r->int_flag)
 	{
-		int x = (int)floor(r->add[0] + 0.5);
-		int y = (int)floor(r->add[1] + 0.5);
+		int x = port::floor_to_int(r->add[0] + 0.5);
+		int y = port::floor_to_int(r->add[1] + 0.5);
 
 		#ifdef DBL
 		x &= ~1;
@@ -3736,7 +3737,7 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 
 #if 0
 
-	int ang = (int)floor((player_dir-yaw) * player_sprite->angles / 360.0f + 0.5f);
+	int ang = port::floor_to_int((player_dir-yaw) * player_sprite->angles / 360.0f + 0.5f);
 	/*
 	if (ang < 0)
 		ang += player_sprite->angles * (1 - ang / player_sprite->angles);
@@ -3767,7 +3768,7 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 	{
 		width / 2,
 		height / 2,
-		(int)floor(pos[2]+0.5) + HEIGHT_SCALE / 4
+		port::floor_to_int(pos[2]+0.5) + HEIGHT_SCALE / 4
 	};
 
 	static uint64_t attack_tim = stamp;
@@ -3807,11 +3808,11 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 
 		int pos_push[3] = { player_pos[0] , player_pos[1] , player_pos[2] };
 
-		// player_pos[1] = height / 2 + (int)floor((2 * r->water - pos[2]) * dy_dz + 0.5);
-		player_pos[1] = height / 2 - (int)floor(2 * (pos[2] - r->water)*dy_dz + 0.5);
+		// player_pos[1] = height / 2 + port::floor_to_int((2 * r->water - pos[2]) * dy_dz + 0.5);
+		player_pos[1] = height / 2 - port::floor_to_int(2 * (pos[2] - r->water)*dy_dz + 0.5);
 
-		// player_pos[2] = (int)floor(2 * r->water - pos[2] + 0.5);
-		player_pos[2] = (int)floor(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4;
+		// player_pos[2] = port::floor_to_int(2 * r->water - pos[2] + 0.5);
+		player_pos[2] = port::floor_to_int(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4;
 
 		r->RenderSprite(out_ptr, width, height, attack_sprite, true, anim, fr, ang, player_pos);
 		r->RenderSprite(out_ptr, width, height, attack_sprite, false, anim, fr, ang, pos_push);
@@ -3824,11 +3825,11 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 
 		r->RenderSprite(out_ptr, width, height, player_sprite, false, anim, fr, ang, player_pos);
 
-		// player_pos[1] = height / 2 + (int)floor((2 * r->water - pos[2]) * dy_dz + 0.5);
-		player_pos[1] = height / 2 - (int)floor(2 * (pos[2] - r->water)*dy_dz + 0.5);
+		// player_pos[1] = height / 2 + port::floor_to_int((2 * r->water - pos[2]) * dy_dz + 0.5);
+		player_pos[1] = height / 2 - port::floor_to_int(2 * (pos[2] - r->water)*dy_dz + 0.5);
 
-		// player_pos[2] = (int)floor(2 * r->water - pos[2] + 0.5);
-		player_pos[2] = (int)floor(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4;
+		// player_pos[2] = port::floor_to_int(2 * r->water - pos[2] + 0.5);
+		player_pos[2] = port::floor_to_int(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4;
 
 		r->RenderSprite(out_ptr, width, height, player_sprite, true, anim, fr, ang, player_pos);
 	}
@@ -3842,7 +3843,7 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 		int frame;
 		int reps[4];
 		Sprite* sprite = GetInstSprite(inst, pos, &dir, &anim, &frame, reps);
-		int ang = (int)floor((dir - yaw) * sprite->angles / 360.0f + 0.5f);
+		int ang = port::floor_to_int((dir - yaw) * sprite->angles / 360.0f + 0.5f);
 		ang = ang >= 0 ? ang % sprite->angles : (ang % sprite->angles + sprite->angles) % sprite->angles;
 
 		{
@@ -3850,7 +3851,7 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 			{
 				width / 2 + scene_shift[0],
 				height / 2 + scene_shift[1],
-				(int)floor(pos[2] + 0.5) + HEIGHT_SCALE / 4 
+				port::floor_to_int(pos[2] + 0.5) + HEIGHT_SCALE / 4 
 			};
 			r->RenderSprite(out_ptr, width, height, sprite, false, anim, frame, ang, player_pos);
 		}
@@ -3861,8 +3862,8 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 			int player_pos[3] =
 			{
 				width / 2 + scene_shift[0],
-				height / 2 - (int)floor(2 * (pos[2] - r->water)*dy_dz + 0.5) + scene_shift[1],
-				(int)floor(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4
+				height / 2 - port::floor_to_int(2 * (pos[2] - r->water)*dy_dz + 0.5) + scene_shift[1],
+				port::floor_to_int(2 * r->water - pos[2] + 0.5) - HEIGHT_SCALE / 4
 			};
 			r->RenderSprite(out_ptr, width, height, sprite, true, anim, frame, ang, player_pos);
 		}
@@ -4160,16 +4161,16 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, floa
 				}
 				else
 				{
-					int tx = (int)floor(r->mul[0] * head_pos[0] + r->mul[2] * head_pos[1] + 0.5 + r->add[0]);
-					int ty = (int)floor(r->mul[1] * head_pos[0] + r->mul[3] * head_pos[1] + r->mul[5] * head_pos[2] + 0.5 + r->add[1]);
+					int tx = port::floor_to_int(r->mul[0] * head_pos[0] + r->mul[2] * head_pos[1] + 0.5 + r->add[0]);
+					int ty = port::floor_to_int(r->mul[1] * head_pos[0] + r->mul[3] * head_pos[1] + r->mul[5] * head_pos[2] + 0.5 + r->add[1]);
 
 					// convert from samples to cells
 					from[0] = (tx - 1) >> 1;
 					from[1] = (ty - 1) >> 1;
 					from[2] = (int)floorf(h->shoot_from[2] + 0.5f) + HEIGHT_SCALE / 2;
 
-					tx = (int)floor(r->mul[0] * tail_pos[0] + r->mul[2] * tail_pos[1] + 0.5 + r->add[0]);
-					ty = (int)floor(r->mul[1] * tail_pos[0] + r->mul[3] * tail_pos[1] + r->mul[5] * tail_pos[2] + 0.5 + r->add[1]);
+					tx = port::floor_to_int(r->mul[0] * tail_pos[0] + r->mul[2] * tail_pos[1] + 0.5 + r->add[0]);
+					ty = port::floor_to_int(r->mul[1] * tail_pos[0] + r->mul[3] * tail_pos[1] + r->mul[5] * tail_pos[2] + 0.5 + r->add[1]);
 
 					// convert from samples to cells
 					to[0] = (tx - 1) >> 1;
@@ -4238,8 +4239,8 @@ bool ProjectCoords(Renderer* r, const float pos[3], int view[3])
 	}
 	else
 	{
-		int tx = (int)floor(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
-		int ty = (int)floor(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
+		int tx = port::floor_to_int(r->mul[0] * w_pos[0] + r->mul[2] * w_pos[1] + 0.5 + r->add[0]);
+		int ty = port::floor_to_int(r->mul[1] * w_pos[0] + r->mul[3] * w_pos[1] + r->mul[5] * w_pos[2] + 0.5 + r->add[1]);
 
 		view[0] = (tx - 1) >> 1;
 		view[1] = (ty - 1) >> 1;

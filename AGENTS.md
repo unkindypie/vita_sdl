@@ -104,9 +104,10 @@ API availability or runtime behavior.
   interchangeable with engine button indices.
 - Keep diagnostics bounded during unlimited sessions. Report wall-clock timings
   separately from the synthetic simulation time used by smoke tests.
-- Engine and presenter hot loops retain `-O2` with Debug symbols. Do not judge
+- Engine and presenter hot loops retain `-O3` with Debug symbols. Do not judge
   raster performance from an accidentally unoptimized Debug build. Preserve
   exact coverage blending and unaligned/padded output tests when optimizing.
+  Do not add fast-math; CPU tuning must preserve physics/visibility checks.
 - Use the documented OpenGL/no-hashless-cache Vita3K baseline. Its host backend
   is independent of Vita's SDL GXM renderer. Check guest `SMOKE_OK` and clean
   shutdown in the latest stage-log section, not only emulator process status.

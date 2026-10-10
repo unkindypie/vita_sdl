@@ -4,7 +4,9 @@
 #include "platform.h"
 #include "scripting/probe.h"
 #include "ui/cells.h"
+#include "ui/raster_math.h"
 #include "app/self_test.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <cstdio>
@@ -18,6 +20,20 @@ int main(int argc, char** argv) {
     try {
         require(argc == 4, "expected asset root, manifest and isolated config path");
         port::set_config_path(argv[3]);
+        for (int i = -65536; i <= 65536; ++i) {
+            const float f = i / 32.0F;
+            const double d = i / 31.0;
+            require(port::floor_to_int(f) == static_cast<int>(std::floor(f)), "float raster floor exact");
+            require(port::floor_to_int(d) == static_cast<int>(std::floor(d)), "double raster floor exact");
+        }
+        for (double boundary : {-2147483648.0, -100.0, -1.0, -0.0, 0.0, 1.0, 100.0, 2147483646.0}) {
+            for (double delta : {-0.00001, 0.0, 0.00001}) {
+                const double value = boundary + delta;
+                if (value >= -2147483648.0)
+                    require(port::floor_to_int(value) == static_cast<int>(std::floor(value)), "raster floor boundary");
+            }
+        }
+        require(port::floor_to_int(-1.0e-30F) == -1 && port::floor_to_int(1.0e-30F) == 0, "small signed raster floor");
         require(port::palette_color(16) == 0xFF000000, "black");
         require(port::palette_color(196) == 0xFFFF0000, "red");
         require(port::palette_color(46) == 0xFF00FF00, "green");
@@ -31,6 +47,33 @@ int main(int argc, char** argv) {
         require(pixels[0] == 0xFFFF0000 && pixels[1] == 0xFF000000, "glyph orientation/foreground");
         require(pixels[80] == 0xFF0000FF, "bottom cell/background");
         require(pixels[8] == 0x12345678, "row padding preserved");
+        // Exercise every palette index and glyph with mixed binary coverage,
+        // unaligned output and padded rows. Compare with scalar selection.
+        std::array<AnsiCell, 256> varied{};
+        for (int i = 0; i < 256; ++i) {
+            varied[i] = {static_cast<uint8_t>(i), static_cast<uint8_t>(255 - i), static_cast<uint8_t>(i), 0};
+            const int cube = std::clamp(i - 16, 0, 215);
+            const uint32_t expected = 0xFF000000U | static_cast<uint32_t>(cube / 36 * 51) << 16 |
+                static_cast<uint32_t>(cube / 6 % 6 * 51) << 8 | static_cast<uint32_t>(cube % 6 * 51);
+            require(port::palette_color(static_cast<uint8_t>(i)) == expected, "palette lookup matches cube");
+            for (int p = 0; p < 64; ++p) font[i * 64 + p] = (i * 13 + p * 7) % 11 < 5 ? 255 : 0;
+        }
+        constexpr int test_pitch = 16 * 8 * 4 + 7;
+        std::vector<uint8_t> varied_pixels(test_pitch * 128 + 1, 0xA5);
+        require(port::rasterize(varied.data(), 16, 16, font, varied_pixels.data() + 1,
+                               test_pitch, varied_pixels.size() - 1), "binary frame raster");
+        for (int y = 0; y < 128; ++y) {
+            for (int x = 0; x < 128; ++x) {
+                const auto& cell = varied[(15 - y / 8) * 16 + x / 8];
+                const uint8_t a = font[cell.gl * 64 + (y % 8) * 8 + x % 8];
+                const uint32_t expected = port::palette_color(a ? cell.fg : cell.bk);
+                uint32_t actual = 0;
+                std::memcpy(&actual, varied_pixels.data() + 1 + y * test_pitch + x * 4, 4);
+                require(actual == expected, "branchless binary raster matches scalar");
+            }
+            for (int p = 512; p < test_pitch; ++p)
+                require(varied_pixels[1 + y * test_pitch + p] == 0xA5, "binary frame padding untouched");
+        }
         // Check every coverage value, including fast-path endpoints, with
         // deliberately unaligned output. The original blend must be unchanged.
         const AnsiCell blend_cell{196, 21, 65, 0};

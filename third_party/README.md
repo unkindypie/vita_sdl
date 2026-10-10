@@ -28,6 +28,11 @@ The official archive retains its upstream license and resources.
   plus terminates bounded player names. `stb_vorbis.cpp` includes Vita alloca.h.
 - Excluded from compilation: desktop launcher/editor, GL/terminal/X11 backends,
   V8 bindings, network/server implementations, and desktop-specific audio.
+- `render.cpp` replaces integer-result floor calls with the tested
+  `src/ui/raster_math.h` truncation/correction helper. It retains float/double
+  input precision and exact floor semantics for the renderer's finite int-range
+  coordinates/colors while avoiding ARM newlib floor calls. No geometry or
+  shading quality reduction is involved.
 
 ## QuickJS
 

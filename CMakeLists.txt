@@ -28,7 +28,9 @@ if(VITA)
   # Upstream uses POSIX/newlib extensions (M_PI and strdup) from C++17.
   target_compile_definitions(asciicker_core PRIVATE _DEFAULT_SOURCE)
 endif()
-target_compile_options(asciicker_core PRIVATE -O2)
+# Vectorize/unroll CPU raster loops; allow hardware sqrt without errno plumbing.
+# Deliberately no fast-math: physics/visibility retain IEEE comparisons.
+target_compile_options(asciicker_core PRIVATE -O3 -fno-math-errno)
 set_source_files_properties(src/scripting/runtime.cpp src/audio/mixer.cpp
   src/audio/playback.cpp src/platform/config.cpp PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
 add_library(image_codec STATIC ${ENGINE_DIR}/upng.c ${ENGINE_DIR}/tinfl.c ${ENGINE_DIR}/rgba8.cpp)
@@ -39,7 +41,7 @@ target_include_directories(ascii_presenter PUBLIC src ${ENGINE_DIR})
 target_link_libraries(ascii_presenter PUBLIC SDL2::SDL2 image_codec)
 # Pixel conversion is a hot loop even in the developer Debug build. Retain
 # debug symbols while optimizing it, just as for the upstream scene renderer.
-target_compile_options(ascii_presenter PRIVATE -O2 -Wall -Wextra -Wpedantic)
+target_compile_options(ascii_presenter PRIVATE -O3 -Wall -Wextra -Wpedantic)
 set(QJS_DIR third_party/quickjs)
 add_library(quickjs STATIC ${QJS_DIR}/quickjs.c ${QJS_DIR}/libregexp.c
   ${QJS_DIR}/libunicode.c ${QJS_DIR}/cutils.c ${QJS_DIR}/dtoa.c)

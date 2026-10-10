@@ -5,6 +5,7 @@ file(READ "${OUTPUT}" config)
 foreach(required IN ITEMS
     "pref-path: \"${PREF_PATH}\""
     "backend-renderer: OpenGL"
+    "screen-filter: Nearest"
     "warn-missing-firmware: false"
     "hashless-texture-cache: false"
     "keyboard-leftstick-up: KeyW"

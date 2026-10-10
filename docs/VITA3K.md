@@ -111,6 +111,7 @@ normal Vita3K storage.
 Validated with Linux Vita3K **0.2.1 / 4154-b75d5e62** on AMD Radeon Graphics:
 
 - OpenGL backend.
+- Nearest display filter for crisp CP437 pixels (not bilinear smoothing).
 - Hashless texture cache off; texture cache off.
 - Memory mapping disabled.
 

@@ -11,6 +11,10 @@ headless tests. Vita uses upstream SDL2's native GXM backend. No desktop GL
 context, VitaGL shader compiler, editor, or GPU scene renderer is required.
 Desktop resizing uses SDL logical-size letterboxing. Two footer rows display
 controls and the current audio/script state.
+Texture scaling explicitly uses nearest-neighbor sampling. Vita3K also uses
+`Nearest` instead of its default bilinear filter, avoiding a second blur pass.
+Native 960x544 or integer-multiple windows give the most even pixel edges;
+fractional desktop scaling can still produce uneven pixel sizes.
 
 `make run ARGS='--smoke --frames 240 --screenshot build/linux/smoke.bmp'` exercises
 the actual SDL event path, upstream movement/physics, camera rotation, glyph
@@ -43,6 +47,25 @@ GPU glyph presentation and GPU scene rendering are explicitly deferred. Keep
 the deterministic CPU converter as a reference if either is explored later.
 
 ## CPU presenter optimization
+
+Current follow-up: the palette is a constexpr 256-entry lookup rather than
+recomputed RGB cube arithmetic per cell. Binary CP437 atlases use branchless
+eight-pixel scanlines with memcpy-safe unaligned/padded output. Atlas coverage
+is checked per call (no stale address-based cache); nonbinary coverage retains
+the exact original rounded blend. Tests compare all palette indices, all glyphs,
+mixed binary coverage, orientation and padding, plus all 256 alpha values.
+CPU engine/presenter translation units now use `-O3`; engine math also uses
+`-fno-math-errno` to permit hardware square root without errno bookkeeping.
+No fast-math, reduced cell resolution, skipped simulation, or lowered geometry
+quality is enabled. See `VALIDATION.md` for measured results and limitations.
+The scene rasterizer's integer-result floor calls use an inline truncation plus
+negative-fraction correction. It preserves float/double input precision and
+floor results for finite values in the existing int-range coordinate/color
+domain, including negative coordinates. Tests cover fractional values and int
+boundaries; final fixed-route framebuffers match the pre-optimization bytes on
+both Linux and Vita3K. This is not a checked conversion for untrusted numbers.
+
+The following measurements describe the earlier optimization pass:
 
 The presenter is compiled with `-O2` even in the Debug build, retaining debug
 symbols, as the upstream scene renderer already was. Previously the Debug
