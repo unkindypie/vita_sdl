@@ -25,47 +25,51 @@ int main(int argc, char **argv) {
     port::asciicker::TerrainTile tile{};
     port::asciicker::SceneCamera camera;
     engine::CameraView camera_view;
-    camera_view.position = {0,15,247};
+    camera_view.position = {0, 15, 247};
     camera_view.yaw_degrees = 45;
-    for (bool perspective : {false,true}) {
+    for (bool perspective : {false, true}) {
         camera_view.perspective = perspective;
-        check(camera.configure(camera_view,120,68), "game camera invertible");
+        check(camera.configure(camera_view, 120, 68), "game camera invertible");
         engine::ScreenPoint screen;
-        check(camera.project(camera_view.position,screen), "game camera projects center");
+        check(camera.project(camera_view.position, screen), "game camera projects center");
         check(screen.x == 60 && screen.y == 34, "game camera center cell");
         engine::Point3 below;
-        check(engine::project_point(camera.matrix(),{244,140},
-                  {camera_view.position[0],camera_view.position[1],camera_view.position[2]/16-10},below) &&
-              below[2] > -1 && below[2] < 1,
+        check(engine::project_point(
+                  camera.matrix(), {244, 140},
+                  {camera_view.position[0], camera_view.position[1], camera_view.position[2] / 16 - 10},
+                  below) &&
+                  below[2] > -1 && below[2] < 1,
               "geometry below camera focus is not clipped by far plane");
         engine::Position restored;
-        check(camera.unproject(screen,restored), "game camera height-plane unprojection");
-        check(std::abs(restored[0]/4-camera_view.position[0]) < 1 &&
-              std::abs(restored[1]/4-camera_view.position[1]) < 1 &&
-              std::abs(restored[2]-camera_view.position[2]) < 1e-4F,
+        check(camera.unproject(screen, restored), "game camera height-plane unprojection");
+        check(std::abs(restored[0] / 4 - camera_view.position[0]) < 1 &&
+                  std::abs(restored[1] / 4 - camera_view.position[1]) < 1 &&
+                  std::abs(restored[2] - camera_view.position[2]) < 1e-4F,
               "game camera expanded shooting units round trip");
         engine::CameraRay ray;
-        check(camera.ray(screen.x,screen.y,ray), "game camera independent picking ray");
+        check(camera.ray(screen.x, screen.y, ray), "game camera independent picking ray");
     }
-    check(!camera.configure(camera_view,0,68), "invalid game camera rejected");
+    check(!camera.configure(camera_view, 0, 68), "invalid game camera rejected");
     std::vector<uint8_t> overlay;
-    const engine::Cell overlay_cells[] = {{231,255,65,0},{255,255,0,0},{16,17,66,0},{18,19,67,0}};
-    check(engine::pack_overlay(overlay_cells,2,2,overlay), "overlay packing");
+    const engine::Cell overlay_cells[] = {
+        {231, 255, 65, 0}, {255, 255, 0, 0}, {16, 17, 66, 0}, {18, 19, 67, 0}};
+    check(engine::pack_overlay(overlay_cells, 2, 2, overlay), "overlay packing");
     check(overlay[0] == 16 && overlay[1] == 17 && overlay[2] == 66 && overlay[3] == 255,
           "overlay bottom-up cells become top-down texels");
-    check(overlay[128*4] == 231 && overlay[128*4+1] == 255 && overlay[128*4+2] == 65,
+    check(overlay[128 * 4] == 231 && overlay[128 * 4 + 1] == 255 && overlay[128 * 4 + 2] == 65,
           "overlay transparent channel preserved");
-    check(overlay[128*4+7] == 0, "transparent overlay cell inactive");
+    check(overlay[128 * 4 + 7] == 0, "transparent overlay cell inactive");
     port::asciicker::take_terrain_changes();
-    port::asciicker::mark_terrain_changed(-8,16);
-    port::asciicker::mark_terrain_changed(-8,16);
+    port::asciicker::mark_terrain_changed(-8, 16);
+    port::asciicker::mark_terrain_changed(-8, 16);
     auto changes = port::asciicker::take_terrain_changes();
     check(changes.count == 1 && changes.patches[0][0] == -8 && !changes.all,
           "terrain invalidation deduplicates negative patch coordinates");
-    check(port::asciicker::take_terrain_changes().count == 0,"terrain changes consumed once");
-    for (int i = 0; i < 257; ++i) port::asciicker::mark_terrain_changed(i*8,0);
+    check(port::asciicker::take_terrain_changes().count == 0, "terrain changes consumed once");
+    for (int i = 0; i < 257; ++i)
+        port::asciicker::mark_terrain_changed(i * 8, 0);
     changes = port::asciicker::take_terrain_changes();
-    check(changes.count == 256 && changes.all,"terrain change overflow requests complete refresh");
+    check(changes.count == 256 && changes.all, "terrain change overflow requests complete refresh");
     tile.x = -8;
     tile.y = 16;
     for (size_t i = 0; i < tile.heights.size(); ++i)
@@ -158,6 +162,17 @@ int main(int argc, char **argv) {
         }
         check(meshes.triangles + meshes.line_segments == static_cast<size_t>(GetMeshFaces(mesh)),
               "all mesh primitives accounted");
+        size_t lit_vertices = 0;
+        for (const auto &resource : meshes.resources)
+            for (const auto &vertex : resource.vertices)
+                if (vertex.surface[3] == 3) {
+                    ++lit_vertices;
+                    const float length_squared = vertex.surface[0] * vertex.surface[0] +
+                                                 vertex.surface[1] * vertex.surface[1] +
+                                                 vertex.surface[2] * vertex.surface[2];
+                    check(std::abs(length_squared - 1) < 1e-5F, "authored mesh face normal is unit length");
+                }
+        check(lit_vertices == meshes.triangles * 3, "all authored triangles receive directional lighting");
     }
     // Exhaustive LUT addressing, CP437 atlas orientation, and failed-load
     // transactionality. Materials are synthetic so every byte is observable.

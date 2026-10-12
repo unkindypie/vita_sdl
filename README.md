@@ -36,6 +36,7 @@ make test        # headless CTest unit/integration/launch checks in Docker
 make test-asan   # repeat host tests with AddressSanitizer
 make smoke       # desktop smoke, movement/camera checks, build/linux/smoke.bmp
 make vita        # build/vita/vita_sdl2.vpk
+make vita3k-bench # finite uncapped emulator diagnostic, normal JS/audio
 make verify-vpk  # build Vita and check packaged manifest entries
 make vita3k-setup # download/check pinned emulator (Linux x86_64)
 make vita3k-smoke # automatic emulator setup, finite smoke of ARM/Vita build

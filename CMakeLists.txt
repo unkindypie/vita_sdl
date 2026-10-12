@@ -129,6 +129,11 @@ else()
     target_link_libraries(geometry_tests PRIVATE engine_render)
     target_compile_options(geometry_tests PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME geometry_contract COMMAND geometry_tests)
+    add_test(NAME reject_unlimited_unpaced COMMAND ${PROJECT_NAME} --unpaced)
+    set_tests_properties(reject_unlimited_unpaced PROPERTIES WILL_FAIL TRUE TIMEOUT 10)
+    add_test(NAME vita3k_finite_runner COMMAND ${CMAKE_COMMAND}
+      -DTEST_OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/vita3k-finite-test
+      -P ${CMAKE_SOURCE_DIR}/tests/vita3k_finite.cmake)
     add_test(NAME gpu_scene_fixture COMMAND ${PROJECT_NAME} --gpu-fixture --frames 12)
     add_test(NAME gpu_world_fixture COMMAND ${PROJECT_NAME} --gpu-fixture --frames 12 --assets "${CMAKE_SOURCE_DIR}/assets")
     add_test(NAME gpu_playable_parity COMMAND ${PROJECT_NAME} --gpu-scene --smoke --frames 600 --verify-gameplay)

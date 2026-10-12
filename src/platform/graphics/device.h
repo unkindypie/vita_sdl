@@ -20,6 +20,7 @@ class Device {
     std::vector<engine::GeometryBounds> bounds_;
     std::vector<engine::GeometryDraw> visible_;
     ScenePass pass_{};
+    bool display_pacing_ = true;
     std::array<float, 4> clip_plane(const engine::Matrix &model) const {
         return {model[2] * pass_.clip_sign, model[6] * pass_.clip_sign, model[10] * pass_.clip_sign,
                 (model[14] - pass_.water_height) * pass_.clip_sign};
@@ -49,6 +50,10 @@ class Device {
                         std::string &error) = 0;
     // GPU-only copy/resolve into the backend-owned window/display queue.
     virtual bool present(std::string &error) = 0;
+    // Diagnostic finite benchmarks only; normal Vita play retains VBlank.
+    void set_display_pacing(bool enabled) {
+        display_pacing_ = enabled;
+    }
     void set_pass(ScenePass pass) {
         pass_ = pass;
     }

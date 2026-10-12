@@ -15,8 +15,13 @@ VITA3K_FRONTEND ?= qt
 # Vita3K separates guest arguments with comma + space, not ordinary spaces.
 VITA3K_ARGS ?=
 VITA3K_SMOKE_VIDEO_DRIVER ?=
-VITA3K_HOST_VSYNC ?= $(if $(filter sdl,$(VITA3K_FRONTEND)),OFF,ON)
+# Guest display callbacks already pace at VBlank. Host VSync can stall each
+# offscreen GXM finish as well, producing multiple host refresh waits per frame.
+VITA3K_HOST_VSYNC ?= OFF
 VITA3K_SURFACE_SYNC ?= OFF
+VITA3K_SCREEN_FILTER ?= Nearest
+VITA3K_BENCH_FRAMES ?= 3600
+VITA3K_RUNNER ?=
 
 .PHONY: help linux run test gpu-test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke vita3k-gpu-test docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
 
@@ -35,7 +40,9 @@ help:
 	  'make vita3k-setup Download/check the pinned Linux x86_64 emulator' \
 	  'make vita3k       Set up Vita3K, build and launch the Vita app' \
 	  'make vita3k-smoke Run 600-frame guest movement/camera smoke in Vita3K' \
+	  'make vita3k-bench Finite uncapped emulator profile with normal JS/audio' \
 	  'make vita3k-gpu-test Native GPU geometry/display and world ASCII diagnostics' \
+	  'make visual-captures Matched 960x544 Linux/Vita guest scene captures' \
 	  'make clean        Remove all generated files'
 
 
@@ -106,24 +113,41 @@ vita3k-setup: docker-image
 	sh tools/setup_vita3k.sh "$(VITA3K)" "$(CURDIR)/build/tools/vita3k/Vita3K"
 
 vita3k: vita3k-setup
+	@test -s "$(CURDIR)/$(VITA3K_DIR)/storage/ur0/data/libshacccg.suprx" || { \
+	  printf '%s\n' 'Missing Vita shader compiler in the selected emulator profile.' \
+	  'Install your separately supplied libshacccg.suprx at:' \
+	  '$(CURDIR)/$(VITA3K_DIR)/storage/ur0/data/libshacccg.suprx' \
+	  'See docs/VITA3K.md. The module is not bundled in this project.'; exit 1; }
 	$(MAKE) vita
 	docker run --rm --user 0 --volume "$(CURDIR):/workspace" $(DOCKER_IMAGE) \
 	  sh -c 'mkdir -p /workspace/$(VITA3K_DIR) && chown -R $(HOST_UID):$(HOST_GID) /workspace/$(VITA3K_DIR)'
 	docker run --rm --user "$(HOST_UID):$(HOST_GID)" --volume "$(CURDIR):/workspace" \
 	  --workdir /workspace $(DOCKER_IMAGE) cmake \
 	  -DOUTPUT=/workspace/$(VITA3K_DIR)/config.yml \
-  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -DSURFACE_SYNC=$(VITA3K_SURFACE_SYNC) -DHOST_VSYNC=$(VITA3K_HOST_VSYNC) -P cmake/prepare_vita3k.cmake
+  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -DSURFACE_SYNC=$(VITA3K_SURFACE_SYNC) -DHOST_VSYNC=$(VITA3K_HOST_VSYNC) -DSCREEN_FILTER=$(VITA3K_SCREEN_FILTER) -P cmake/prepare_vita3k.cmake
 # In this emulator build --console skips Qt's SDL audio/controller init.
-	$(if $(VITA3K_SMOKE_VIDEO_DRIVER),env SDL_VIDEODRIVER="$(VITA3K_SMOKE_VIDEO_DRIVER)",) "$(VITA3K)" --frontend "$(VITA3K_FRONTEND)" $(if $(filter sdl,$(VITA3K_FRONTEND)),--console,) --load-config \
+	$(if $(VITA3K_SMOKE_VIDEO_DRIVER),env SDL_VIDEODRIVER="$(VITA3K_SMOKE_VIDEO_DRIVER)",) $(VITA3K_RUNNER) "$(VITA3K)" --frontend "$(VITA3K_FRONTEND)" $(if $(filter sdl,$(VITA3K_FRONTEND)),--console,) --load-config \
 	  --config-location "$(CURDIR)/$(VITA3K_DIR)/config.yml" --keep-config \
 	  --app-args '$(VITA3K_ARGS)' "$(CURDIR)/$(VITA_BUILD_DIR)/$(PROJECT).vpk"
 
 vita3k-smoke:
 	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
 
+.PHONY: vita3k-bench
+# Finite normal-JS/audio route; no parity injection or capture synchronization.
+vita3k-bench:
+	$(MAKE) vita3k VITA3K_FRONTEND=qt VITA3K_HOST_VSYNC=OFF VITA3K_SURFACE_SYNC=OFF VITA3K_RUNNER='sh tools/run_vita3k_finite.sh "$(CURDIR)/$(VITA3K_DIR)/storage/ux0/data/asciicker/stages.log"' VITA3K_ARGS='--smoke, --frames, $(VITA3K_BENCH_FRAMES), --unpaced'
+
 vita3k-gpu-test:
 	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--gpu-fixture, --frames, 120, --screenshot, ux0:data/asciicker/gpu-fixture.bmp'
 	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--gpu-fixture, --assets, app0:assets, --frames, 120, --screenshot, ux0:data/asciicker/gpu-world.bmp'
+
+.PHONY: visual-captures
+# Offscreen prevents desktop tiling/fractional window size from changing the
+# Linux reference. This is visual validation, not a performance benchmark.
+visual-captures: linux
+	SDL_VIDEODRIVER=offscreen $(LINUX_BUILD_DIR)/$(PROJECT) --smoke --frames 600 --screenshot $(LINUX_BUILD_DIR)/visual-600.bmp
+	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_RUNNER='sh tools/run_vita3k_finite.sh "$(CURDIR)/$(VITA3K_DIR)/storage/ux0/data/asciicker/stages.log"' VITA3K_ARGS='--smoke, --frames, 600, --screenshot, ux0:data/asciicker/visual-600.bmp'
 
 clean:
 	$(RM) -r $(BUILD_DIR)

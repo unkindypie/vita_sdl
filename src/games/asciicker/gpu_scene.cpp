@@ -126,6 +126,11 @@ class GpuScene final : public engine::SceneBackend {
         if (!self.camera_.project({position[0], position[1], z}, anchor))
             return;
         const int left = anchor.x - image.ref[0] / 2, bottom = anchor.y - image.ref[1] / 2;
+        // The world callback also visits distant entities. Reject the whole
+        // image before walking its cells (including the nearby health bar).
+        if (left >= self.columns_ + 5 || left + image.width < -5 ||
+            bottom >= self.rows_ + 12 || bottom + image.height < -12)
+            return;
         const float width = self.columns_ * 2 + 4, height = self.rows_ * 2 + 4;
         const auto *character = static_cast<const Character *>(GetInstSpriteData(inst));
         if (!self.reflection_ && character && (!game || character != &game->player) &&

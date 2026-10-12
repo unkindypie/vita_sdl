@@ -58,6 +58,15 @@ void face(float coords[9], uint8_t colors[12], uint32_t visual, void *cookie) {
         builder.overflow = true;
         return;
     }
+    const float ax = coords[3] - coords[0], ay = coords[4] - coords[1], az = coords[5] - coords[2];
+    const float bx = coords[6] - coords[0], by = coords[7] - coords[1], bz = coords[8] - coords[2];
+    std::array<float, 3> normal{ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx};
+    const float length = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+    if (length > 1e-12F)
+        for (auto &value : normal)
+            value /= length;
+    else
+        normal = {0, 0, 1};
     for (size_t i = 0; i < 3; ++i) {
         builder.geometry.indices.push_back(static_cast<uint16_t>(builder.geometry.vertices.size()));
         // Local mesh units are preserved; the instance matrix normalizes world
@@ -65,7 +74,8 @@ void face(float coords[9], uint8_t colors[12], uint32_t visual, void *cookie) {
         // upstream: its scene rasterizer consumes only RGB here.
         builder.geometry.vertices.push_back(
             {{coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]},
-             {colors[i * 4] / 255.0f, colors[i * 4 + 1] / 255.0f, colors[i * 4 + 2] / 255.0f, 1}});
+             {colors[i * 4] / 255.0f, colors[i * 4 + 1] / 255.0f, colors[i * 4 + 2] / 255.0f, 1},
+             {normal[0], normal[1], normal[2], 3}});
     }
 }
 struct Collector {

@@ -14,8 +14,13 @@ There is no CPU scene fallback or normal scene/depth readback.
    and projectile damage independently of rendering.
 3. Render reflected geometry/sprites, then primary geometry, water and sprites
    with GPU depth. Authored mesh line edges become narrow depth-tested ribbons.
+   Mesh face normals are cached, inverse-transpose transformed per instance,
+   and directionally lit in the vertex shader (including scale/reflection).
+   Terrain depth is explicitly stored before native sprite depth reload.
 4. Resolve material/lighting/elevation metadata into two RGBA style texels per
    ASCII cell. Material IDs and direct mesh RGB must not be averaged together.
+   Mesh cells select vertical/horizontal CP437 half blocks according to sample
+   detail, then quantize to the same six-level pastel palette as other cells.
 5. Expand CP437 coverage, compose sprites and independent CPU-generated UI,
    then present. Terrain/material/font textures remain point-sampled.
 
@@ -42,6 +47,18 @@ reflection, primary submission, UI preparation and present waits. These overlap
 the enclosing scene timer and are not GPU timestamp queries. Use matched normal
 JS/no-JS routes without `--verify-gameplay` for benchmarks; that harness changes
 gameplay, reloads the world and intentionally injects script failures.
+`game_ui_p50/p95` records the per-frame wall-time remainder outside scene backend
+dispatch: simulation/AI, scripts, interactions and upstream UI. JavaScript is
+included; these timings are not independent additive CPU/GPU measurements.
+
+Native reflection capture rotates owned color buffers/textures instead of
+copying through the transfer engine. Sprite underlay still uses a synchronized
+transfer: a tested GPU-blit replacement failed native rear-depth regression and
+was removed. Do not drop that wait without a passing replacement depth check.
+`make vita3k-bench` disables guest VBlank for finite headroom measurements only;
+normal gameplay retains pacing. Emulator host VSync defaults OFF, independently
+of the native display callback. Neither uncapped emulator FPS nor Linux FPS
+establishes the 60 FPS real-Vita acceptance target.
 
 Remaining gates include overlapping transparent sprite composition/visual audit,
 legacy game update/presentation separation and real-device performance/input

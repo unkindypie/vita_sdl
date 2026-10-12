@@ -1,5 +1,9 @@
 # ASCII rendering and diagnostics
 
+> Historical CPU-presenter notes below describe the earlier port, not the
+> current GPU-only runtime. See [GPU rendering](GPU_RENDERING.md) for the active
+> pipeline and [visual parity](VISUAL_PARITY.md) for Linux/Vita comparison.
+
 The shared engine renders the original map into a 120x68 `AnsiCell` buffer on
 the CPU. Each cell is rasterized using the upstream CP437 8x8 font and its
 6x6x6 RGB palette into a 960x544 ARGB8888 pixel buffer. SDL2 uploads one streaming

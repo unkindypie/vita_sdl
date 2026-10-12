@@ -11,7 +11,8 @@ using Matrix = std::array<float, 16>;
 struct GeometryVertex {
     std::array<float, 3> position;
     std::array<float, 4> color;
-    // Optional material UV, computed light, and kind (0 direct/1 LUT/2 water).
+    // UV/light for terrain; XYZ normal for lit meshes.
+    // Kind: 0 unlit/direct, 1 terrain LUT, 2 water, 3 lit mesh.
     std::array<float, 4> surface{};
 };
 struct Geometry {
@@ -32,6 +33,9 @@ bool pack_geometry(const std::vector<Geometry> &batches, PackedGeometry &, std::
 Matrix identity_matrix();
 Matrix rotation_y(float radians);
 Matrix multiply_matrix(const Matrix &, const Matrix &);
+// Inverse-transpose linear transform for authored normals. Translation is
+// ignored; singular transforms return identity rather than NaN uniforms.
+Matrix normal_matrix(const Matrix &);
 struct GeometryInstance {
     size_t geometry;
     Matrix transform = identity_matrix();

@@ -66,12 +66,20 @@ float4 resolve_style(float2 uv, float4 layout, float layer, float part) {
         float mc=step(0.85,c.a),md=step(0.85,d.a);
         float3 top = ma+mb>0.5 ? (a.rgb*ma+b.rgb*mb)/max(ma+mb,1.0) : selected.rgb;
         float3 bottom = mc+md>0.5 ? (c.rgb*mc+d.rgb*md)/max(mc+md,1.0) : selected.rgb;
-        float3 gray = float3(0.2126,0.7152,0.0722);
-        top = lerp(top,float3(dot(top,gray)),0.25);
-        bottom = lerp(bottom,float3(dot(bottom,gray)),0.25);
-        top = float3(44.0,48.0,56.0)/255.0 + top*(196.0/255.0);
-        bottom = float3(44.0,48.0,56.0)/255.0 + bottom*(196.0/255.0);
+        float3 left = ma+mc>0.5 ? (a.rgb*ma+c.rgb*mc)/max(ma+mc,1.0) : selected.rgb;
+        float3 right = mb+md>0.5 ? (b.rgb*mb+d.rgb*md)/max(mb+md,1.0) : selected.rgb;
         float2 mesh_glyph=float2(15.0,13.0);
+        // Preserve vertical detail too, rather than flatten every cell into
+        // an upper/lower pair. Both orientations use actual CP437 half blocks.
+        if (dot(abs(left-right),float3(1,1,1)) > dot(abs(top-bottom),float3(1,1,1))) {
+            top=left; bottom=right; mesh_glyph=float2(13.0,13.0);
+        }
+        // Match the game's six-level colour cube and shared pastel palette,
+        // not a second, approximately graded continuous-RGB colour space.
+        float3 upper_index=floor(clamp(top,0.0,1.0)*5.0+0.5);
+        float3 lower_index=floor(clamp(bottom,0.0,1.0)*5.0+0.5);
+        top=ascii_palette(16.0+dot(upper_index,float3(36,6,1))).rgb;
+        bottom=ascii_palette(16.0+dot(lower_index,float3(36,6,1))).rgb;
         if (dot(abs(top-bottom),float3(1.0,1.0,1.0))<0.12) {
             mesh_glyph=float2(0.0,11.0); top=top*0.78;
         }

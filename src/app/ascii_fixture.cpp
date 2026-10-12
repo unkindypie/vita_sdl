@@ -6,18 +6,18 @@
 #include <memory>
 namespace port {
 bool check_ascii_resolve(graphics::DeviceFactory &factory, const engine::AsciiResources &resources,
-                         const std::string &screenshot, std::string &error, bool mixed) {
+                         const std::string &screenshot, std::string &error, bool mixed, bool mesh) {
     auto device = factory.create(36, 36, error);
     if (!device)
         return false;
     engine::Geometry geometry;
     // One material per cell, all 256 IDs. Each quad covers exactly two scene
     // samples; padding is excluded by the resolve. No CPU scene rasterization.
-    const int extent = mixed ? 32 : 16;
-    const int step = mixed ? 1 : 2;
+    const int extent = mixed || mesh ? 32 : 16;
+    const int step = mixed || mesh ? 1 : 2;
     for (int y = 0; y < extent; ++y)
         for (int x = 0; x < extent; ++x) {
-            const int cx = mixed ? x / 2 : x, cy = mixed ? y / 2 : y;
+            const int cx = mixed || mesh ? x / 2 : x, cy = mixed || mesh ? y / 2 : y;
             // Regression: two matching lower samples must beat two different
             // upper samples. This specifically catches the missing c==d vote.
             const int offset = mixed ? (y % 2 ? 2 : x % 2) : 0;
@@ -32,6 +32,10 @@ bool check_ascii_resolve(graphics::DeviceFactory &factory, const engine::AsciiRe
                 // direct RGB. Cross-domain equality must not steal the vote.
                 metadata[0] = static_cast<float>((cy * 16 + cx + 2) % 256) / 255;
                 metadata[3] = 1;
+            }
+            if (mesh) {
+                const bool second = (cx + cy) % 2 ? y % 2 : x % 2;
+                metadata = second ? std::array<float, 4>{0, 0, 1, 1} : std::array<float, 4>{1, 0, 0, 1};
             }
             const uint16_t base = static_cast<uint16_t>(geometry.vertices.size());
             geometry.vertices.push_back({{left, bottom, 0}, metadata});
@@ -61,7 +65,11 @@ bool check_ascii_resolve(graphics::DeviceFactory &factory, const engine::AsciiRe
             const auto *fg = resources.materials.data() +
                              (((cy * 16 + cx + (mixed ? 2 : 0)) % 256) * 128 + cx * 8 + (cy % 4) * 2) * 4;
             const auto *bg = fg + 4;
-            const int glyph = fg[3];
+            if (mesh) {
+                fg = resources.font.data() + 196 * 4; // shared graded red
+                bg = resources.font.data() + 21 * 4;  // shared graded blue
+            }
+            const int glyph = mesh ? ((cx + cy) % 2 ? 223 : 221) : fg[3];
             const unsigned coverage =
                 resources.font[(((glyph / 16) * 8 + gy) * 128 + (glyph % 16) * 8 + gx) * 4 + 3];
             for (int channel = 0; channel < 3; ++channel) {
@@ -90,12 +98,12 @@ bool check_ascii_resolve(graphics::DeviceFactory &factory, const engine::AsciiRe
         }
     }
     char message[200];
-    std::snprintf(
-        message, sizeof(message),
-        "GPU_ASCII_FIXTURE_OK backend=%s materials=256 shades=16 elevations=4 mixed=%d pixels_checked=%u",
-        device->name(), mixed ? 1 : 0, static_cast<unsigned>(checked));
+    std::snprintf(message, sizeof(message),
+                  "GPU_ASCII_FIXTURE_OK backend=%s materials=256 shades=16 elevations=4 mixed=%d mesh=%d "
+                  "pixels_checked=%u",
+                  device->name(), mixed ? 1 : 0, mesh ? 1 : 0, static_cast<unsigned>(checked));
     log_stage(message);
-    if (!mixed) {
+    if (!mixed && !mesh) {
         // A front sprite preserves the terrain under transparent channels;
         // a rear sprite is rejected by depth. UI is a separate top-down upload.
         engine::Geometry dynamic;

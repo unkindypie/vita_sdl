@@ -1,5 +1,115 @@
 # Validation — offline runtime 0.3
 
+## Performance/art recovery — 2026-10-12
+
+Plan: `GPU_REWRITE_PLAN.md`, recovery tasks 1–4. Technical summary and limitations:
+`docs/PERFORMANCE_RECOVERY.md`. The target is now 60 FPS on real Vita; hardware
+acceptance is still open. These are **emulator results**, not device predictions.
+
+Normal-JS/audio, controlled input, no parity harness, surface-sync OFF:
+
+| Run | Frames | Wall p50/p95 ms | JS p50/p95 ms | Wall elapsed |
+| --- | ---: | ---: | ---: | ---: |
+| Qt unpaced JS | 3600 | 5.27 / 7.93 | 0.011 / 0.023 | 20.5 s |
+| Qt unpaced no-JS | 3600 | 5.14 / 7.75 | 0 / 0 | 19.9 s |
+| SDL unpaced JS | 3600 | 5.17 / 7.80 | 0.011 / 0.022 | 20.0 s |
+| Qt paced, host VSync ON | 600 | 16.66 / 16.71 | 0.018 / 0.045 | 10.1 s |
+| Qt paced, host VSync OFF | 600 | 16.66 / 16.72 | 0.018 / 0.045 | 10.1 s |
+| Qt ordinary real-time, idle | 1798 | 16.66 / 16.71 | 0.019 / 0.047 | 30 s |
+
+Qt JS/no-JS use the same render revision. SDL and paced comparisons include
+the later CDRAM texture/depth placement; do not attribute frontend differences
+to JS or hardware throughput. Final stage-remainder telemetry was added after
+these profiles. Routes move/rotate initially, then idle: not a worst-case combat
+benchmark or long soak. No other active game/emulator workloads in the final
+paired runs; earlier contended measurements are identified in the recovery doc.
+The last row is a separate ordinary `--seconds, 30` launch, not smoke mode:
+real simulation timestamps, no synthetic input, JS/audio enabled, zero script
+errors/dropped audio, clean shutdown. It rendered 1798 frames in 30 seconds
+(~59.9 FPS overall). Backend remainder was 2.81/5.00 ms p50/p95; present wait
+median 10.98 ms. This idle check does not prove worst-case movement/combat.
+
+Commands: `make vita3k-bench`; equivalent no-JS launch uses Qt with
+`VITA3K_ARGS='--smoke, --frames, 3600, --unpaced, --no-js'` and the finite runner.
+SDL uses the same frame/input/JS args. Paced runs omit `--unpaced` and explicitly
+set `VITA3K_HOST_VSYNC=ON/OFF`. Raw logs:
+`/tmp/asciicker-recovery-wrapped-qt-js.log`,
+`/tmp/asciicker-recovery-wrapped-qt-nojs.log`,
+`/tmp/asciicker-recovery-final-sdl-js.log`,
+`/tmp/asciicker-recovery-final-qt-paced-on.log`,
+`/tmp/asciicker-recovery-final-qt-paced-off.log`.
+The ordinary-time run is `/tmp/asciicker-recovery-realtime-qt.log` (guest profile
+summary is authoritative in the latest appended stage-log section).
+
+Validation:
+
+- `make test`: 18/18, including rejection of unlimited unpaced runs and the
+  finite-runner stale-log/timeout/own-process cleanup tests.
+- `make test-asan`: 18/18 (32.43 s); existing external SDL/EGL leak exception
+  unchanged, all memory-access checks active. Log:
+  `/tmp/asciicker-recovery-completed-asan.log`.
+- `make gpu-test`: actual radeonsi GPU depth, rotated-instance lighting,
+  material/mixed/mesh-half-block fixtures, composition and atlas updates passed.
+  204,000 nonboundary display pixels checked per resolve fixture at this desktop
+  window size. Log: `/tmp/asciicker-recovery-rotated-accelerated.log`.
+- `make vita3k-gpu-test`: native rotated-normal lighting/depth/reuse/display
+  checks at three target sizes; world/material/mixed/mesh resolve, composition,
+  partial atlas updates passed. 458,752 pixels per native resolve fixture.
+  Log: `/tmp/asciicker-recovery-rotated-native.log`.
+- Linux host 600-frame gameplay parity launch/capture: PARITY_OK, SMOKE_OK and
+  clean shutdown. Screenshot `build/linux/recovery-final.png` inspected.
+- Final native 600-frame parity/reset run: PARITY_OK, GAMEPLAY_CHECKS_OK,
+  SCREENSHOT_GPU_OK, SMOKE_OK and SHUTDOWN_OK. Native screenshot inspected.
+  Expected injected-script errors: 8; this is not a benchmark.
+  Log: `/tmp/asciicker-recovery-completed-native-parity.log`.
+- VPK manifest verification: 257 required entries present. The compiler remains
+  an external prerequisite. Generated logs/captures/VPK stay ignored.
+
+Native reflection transfer is removed; sprite-underlay transfer is intentionally
+retained after a GPU-blit replacement failed the rear-depth check. No failed
+prototype/fallback code remains. The emulator launcher now checks the selected
+profile compiler before launch; plain `make vita3k` remains interactive.
+`game_ui_p50/p95` computes the per-frame remainder outside backend dispatch,
+including JS/AI/physics/UI, before taking percentiles. No physical-clock changes,
+quality reductions, disabled gameplay features or CPU scene fallback were used.
+Physical 60 FPS, exact old-renderer visual parity, multi-sprite transparent
+layering, sustained worst-case routes and the long Linux soak remain open.
+
+## Hardware feedback repair — 2026-10-12
+
+User reports 3–4 FPS and missing entities on physical Vita. This fails hardware
+acceptance despite prior Linux/emulator success. Native terrain depth now uses
+explicit force-store before the sprite scene force-loads it (VitaSDK GXM
+depth surface contract). The geometry fixture checks both occluded and visible
+dynamic geometry at three target sizes; native Vita3K passed all three.
+
+Startup now has an asset-independent native LOADING/progress framebuffer before
+SDL and shader compilation. It is released after first gameplay presentation;
+startup errors also release display ownership safely. Linux remains unchanged.
+Immutable native vertex/index buffers use CDRAM; offscreen entity images are
+rejected before per-cell iteration. These optimizations are not a claim of
+improved physical FPS. Bounded live profiles persist every 120 frames under
+`ux0:data/asciicker/stages.log`, without requiring shutdown.
+
+`make test`: 16/16 passed with depth regression/loader integration.
+`make run ARGS='--smoke --frames 240 --screenshot build/linux/depth-fix.bmp'`:
+SMOKE_OK, clean shutdown, no script errors; screenshot inspected, player/NPC
+sprites visible. Host p50 1.53 ms is not hardware performance evidence.
+`make vita`: VPK compiled/packaged. Physical loader appearance, missing-entity
+repair and FPS remain unverified. Request the live profile log after hardware
+play before selecting further GPU/simulation optimizations.
+
+Final offscreen-culling build: `make test` 16/16 passed (15.09 s).
+`make vita3k-gpu-test VITA3K_DIR=build/vita3k-shader-probe` passed native
+depth/reuse/display/dynamic checks at three sizes, world fixture, both ASCII
+material fixtures, composition and partial surface update checks. Generated
+logs: `/tmp/asciicker-depth-native-fixture.log` and
+`/tmp/asciicker-depth-perf-final-tests.log`.
+`make vita3k-smoke VITA3K_DIR=build/vita3k-shader-probe`: 600 frames,
+PARITY_OK, GAMEPLAY_CHECKS_OK, SCREENSHOT_GPU_OK, SMOKE_OK and SHUTDOWN_OK.
+Live timing records were written during the run. The intrusive harness's
+16.66 ms emulator median does not establish physical performance.
+
 Recorded 2026-10-10. The latest request authorized all offline phases. Linux
 and Vita3K substitute for device checks; real hardware acceptance remains open.
 
@@ -669,3 +779,28 @@ guest stage sections, not old successes in the same log, are authoritative.
   composition and atlas-region updates (`/tmp/asciicker-gpu-only-accelerated.log`).
   Final VPK verification again reports all 257 required entries present
   (`/tmp/asciicker-gpu-only-final-vpk.log`).
+
+## Icon and Linux/Vita visual comparison — 2026-10-12
+
+- Added `packaging/IMG_6612.PNG` and converted it to the required 128x128,
+  indexed, non-interlaced `icon.png`. Transparency is flattened onto black.
+  Previous generated icon preserved as `icon-previous.png`; original JPEG and
+  SVG retained. Only the active icon enters the VPK.
+- Matched normal-JS/audio smoke captures at frames 240 and 600, Linux offscreen
+  OpenGL and native GXM/Vita3K, both 960x544. ImageMagick normalized RGB RMSE:
+  0.00115825 and 0.00115589. Inspected captures and highlighted difference
+  images; no broad lighting/gamma discrepancy reproduced in these scenes.
+- Vita3K final display defaults to Nearest, matching Linux. Bilinear remains
+  explicit opt-in. Config tests cover default, override and invalid filters.
+- `make test`: 18/18 passed. `make verify-vpk`: 257 required entries present.
+  Host launch and native 240/600-frame runs reached `SMOKE_OK` and
+  `SHUTDOWN_OK`; normal JS reported zero errors. Logs: `/tmp/visual-tests.log`,
+  `/tmp/visual-vpk-final.log`, `/tmp/visual-tests-delivery2.log`, `/tmp/visual-linux-native.log`,
+  `/tmp/visual-linux-600.log`, `/tmp/visual-vita-600.log`.
+- Reusable `make visual-captures` documents the native-resolution comparison;
+  its finite runner checks freshly appended completion markers even if SDL
+  exits between polls (regression-tested alongside stale-marker rejection).
+  End-to-end command passed: `/tmp/visual-captures-final.log`.
+  see [visual parity](VISUAL_PARITY.md). Guest captures exclude emulator-window
+  filtering. No claim of physical Vita visual/performance validation or full
+  transparency/reflection parity follows from these two route endpoints.

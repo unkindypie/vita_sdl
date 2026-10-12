@@ -6,6 +6,12 @@ SHA-256, and extracts it to ignored `build/tools/vita3k/`. No `/tmp` installatio
 source clone, or PATH change is needed. These commands build the VPK, generate
 a known-working config, and install/run it:
 
+Each selected profile must separately contain
+`storage/ur0/data/libshacccg.suprx` beneath its `VITA3K_DIR`. A fresh profile does
+not inherit this compiler from another profile. The launcher checks before
+starting the emulator and prints the exact required path when missing. The
+module is not bundled/downloaded by setup; use your separately installed copy.
+
 ```sh
 make vita3k-setup # optional: download/check without compiling the game
 make vita3k
@@ -52,6 +58,19 @@ Inspect the latest session's `PROFILE` and `SCRIPT_PROFILE` entries in the stage
 log below. Match camera/route/settings and minimize host contention. Qt frontend
 timings are a separate baseline from historical SDL smoke results; neither
 measures real Vita hardware performance.
+
+Host VSync defaults OFF for both frontends. Guest VBlank still paces normal
+play at 60 Hz. The pinned Qt/OpenGL frontend with host VSync ON can wait for
+multiple host refreshes inside offscreen GXM completion calls, reducing guest
+FPS even when collection and JavaScript are inexpensive. Override with
+`VITA3K_HOST_VSYNC=ON` only for explicit comparisons.
+
+For uncapped emulator headroom (not hardware FPS), use `make vita3k-bench`.
+It runs a finite 3600-frame route with normal JS/audio, disables guest display
+pacing, and does not inject parity scripts or request GPU captures. Set
+`VITA3K_BENCH_FRAMES=1200` for a shorter run. `--unpaced` requires a finite
+frame/time limit and is rejected with the intrusive gameplay parity harness.
+Use ordinary `make vita3k` for manual play, not this benchmark mode.
 
 `make vita3k-smoke` deliberately uses the SDL frontend with synthetic in-game
 input. In pinned build 4154, that frontend does **not** forward host keyboard
@@ -115,7 +134,10 @@ normal Vita3K storage.
 Validated with Linux Vita3K **0.2.1 / 4154-b75d5e62** on AMD Radeon Graphics:
 
 - OpenGL backend.
-- Bilinear display filtering for softer scaled ASCII edges.
+- Nearest display filtering, matching Linux's crisp ASCII presentation. Use
+  `make vita3k VITA3K_SCREEN_FILTER=Bilinear` to explicitly prefer softer edges.
+  Compare at a 960x544 viewport or an integer multiple before judging lighting;
+  fractional window scaling changes glyph appearance, not the scene lighting.
 - Hashless texture cache off; ordinary texture cache on (required for distinct
   scene/material/font samplers in the native GPU renderer).
 - Memory mapping disabled.

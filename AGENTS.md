@@ -48,7 +48,9 @@ make verify-vpk   # Build and verify packaged manifest entries
 make vita3k-setup # Download/check pinned host emulator under build/tools/
 make vita3k       # Automatically set up emulator, build/run Vita binary
 make vita3k-smoke # Finite guest smoke with raw stage logs and BMP capture
+make vita3k-bench # Finite normal-JS/audio emulator headroom; not hardware FPS
 make vita3k-gpu-test # Native depth/display/world/ASCII checks; compiler prerequisite
+make visual-captures # Matched 960x544 host/guest captures, not performance runs
 make clean        # Remove generated build output
 ```
 
@@ -138,6 +140,10 @@ API availability or runtime behavior.
 - Use the documented OpenGL/no-hashless-cache Vita3K baseline. Its host backend
   is independent of Vita's SDL GXM renderer. Check guest `SMOKE_OK` and clean
   shutdown in the latest stage-log section, not only emulator process status.
+- Keep host VSync OFF on both emulator frontends; normal native guest VBlank
+  remains enabled. `--unpaced` is a finite diagnostic only, never a normal-play
+  setting or hardware acceptance result. Benchmark runner completion must use
+  newly appended guest markers, not a successful old stage-log section.
 - Interactive Vita3K uses Qt without `--console` (console skips its audio/pad
   initialization). SDL is for synthetic smoke only in the pinned build: smoke
   success does not verify host keyboard/mouse forwarding. Test human input at
@@ -158,7 +164,7 @@ API availability or runtime behavior.
 - Render backends are per-instance and borrowed by the legacy bridge; detach
   before destroying backend/resources. Rendering must not advance simulation
   or scripts. No hidden CPU scene pass/readback under a selected GPU backend.
-- Physical Vita currently reports 2–3 FPS. Target >=30 FPS with complete
+- Physical Vita currently reports 3–4 FPS. Target 60 FPS with complete
   gameplay, but require measured hardware evidence before declaring success.
 - Keep the official QuickJS 2026-06-04 snapshot pinned on both targets. Preserve
   shared-buffer offsets, UTF-8 boundaries, script limits, and callback teardown.

@@ -33,6 +33,13 @@ struct Memory {
     ~Memory() {
         reset();
     }
+    void swap(Memory &other) noexcept {
+        std::swap(uid, other.uid);
+        std::swap(data, other.data);
+        std::swap(offset, other.offset);
+        std::swap(mapping, other.mapping);
+        std::swap(mapped, other.mapped);
+    }
     void reset() {
         if (mapped) {
             if (mapping == Mapping::VertexCode)
@@ -81,6 +88,7 @@ void host_free(void *, void *memory) {
 }
 struct DisplayFrame {
     void *address;
+    bool paced;
 };
 void display_callback(const void *data) {
     const auto *frame = static_cast<const DisplayFrame *>(data);
@@ -92,7 +100,8 @@ void display_callback(const void *data) {
     buffer.width = 960;
     buffer.height = 544;
     sceDisplaySetFrameBuf(&buffer, SCE_DISPLAY_SETBUF_NEXTFRAME);
-    sceDisplayWaitVblankStart();
+    if (frame->paced)
+        sceDisplayWaitVblankStart();
 }
 struct Runtime {
     bool initialized = false;
@@ -167,6 +176,7 @@ class GxmDevice final : public Device {
     SceGxmFragmentProgram *fragment_program_ = nullptr;
     SceGxmFragmentProgram *blit_program_ = nullptr;
     const SceGxmProgramParameter *matrix_ = nullptr;
+    const SceGxmProgramParameter *normals_ = nullptr;
     const SceGxmProgramParameter *plane_ = nullptr;
     const SceGxmProgramParameter *light_ = nullptr;
     std::unique_ptr<void, decltype(&std::free)> host_{nullptr, std::free};
@@ -186,10 +196,13 @@ class GxmDevice final : public Device {
     uint32_t count_ = 0;
     std::vector<engine::GeometryRange> ranges_;
     bool draw(const void *vertices, const void *indices, uint32_t count, const engine::Matrix &matrix,
-              std::string &error, const std::array<float, 4> &plane = {}) {
+              std::string &error, const std::array<float, 4> &plane = {},
+              const engine::Matrix &normals = engine::identity_matrix()) {
         void *uniforms = nullptr;
         if (!checked(sceGxmReserveVertexDefaultUniformBuffer(context_, &uniforms), "GXM uniforms", error) ||
             !checked(sceGxmSetUniformDataF(uniforms, matrix_, 0, 16, matrix.data()), "GXM matrix", error) ||
+            !checked(sceGxmSetUniformDataF(uniforms, normals_, 0, 16, normals.data()), "GXM normals",
+                     error) ||
             !checked(sceGxmSetUniformDataF(uniforms, plane_, 0, 4, plane.data()), "GXM clip plane", error) ||
             !checked(sceGxmSetUniformDataF(uniforms, light_, 0, 4, pass_.light.data()), "GXM lighting",
                      error) ||
@@ -276,14 +289,13 @@ class GxmDevice final : public Device {
         return "GXM";
     }
     bool capture_reflection(std::string &error) override {
-        sceGxmFinish(context_);
-        return checked(sceGxmTransferCopy(width_, height_, 0, 0, SCE_GXM_TRANSFER_COLORKEY_NONE,
-                                          SCE_GXM_TRANSFER_FORMAT_U8U8U8U8_ABGR, SCE_GXM_TRANSFER_LINEAR,
-                                          color_memory_.data, 0, 0, stride_ * 4,
-                                          SCE_GXM_TRANSFER_FORMAT_U8U8U8U8_ABGR, SCE_GXM_TRANSFER_LINEAR,
-                                          reflection_memory_.data, 0, 0, stride_ * 4, nullptr, 0, nullptr),
-                       "reflection copy", error) &&
-               checked(sceGxmTransferFinish(), "reflection finish", error);
+        // Preserve the rendered allocation rather than copying it through the
+        // transfer engine. The next primary pass renders into the spare target.
+        // Synchronization before target reuse is retained in render/set_dynamic.
+        color_memory_.swap(reflection_memory_);
+        std::swap(color_texture_, reflection_texture_);
+        return checked(sceGxmColorSurfaceSetData(&color_, color_memory_.data), "reflection target rotation",
+                       error);
     }
     bool set_dynamic(const engine::Geometry &geometry, std::string &error) override {
         if (geometry.vertices.empty() && geometry.indices.empty()) {
@@ -324,7 +336,7 @@ class GxmDevice final : public Device {
         // GXM linear textures round each row to eight pixels, even for a
         // smaller logical width. Source atlases remain tightly packed.
         const int stride = (surface.width + 7) & ~7;
-        if (!surface_memory_.allocate(static_cast<size_t>(stride) * surface.height * 4, Mapping::Data, error))
+        if (!surface_memory_.allocate(static_cast<size_t>(stride) * surface.height * 4, Mapping::Data, error, true))
             return false;
         for (int row = 0; row < surface.height; ++row)
             std::memcpy(static_cast<uint8_t *>(surface_memory_.data) + row * stride * 4,
@@ -445,8 +457,8 @@ class GxmDevice final : public Device {
             sceGxmTextureSetUAddrMode(&style_texture_, SCE_GXM_TEXTURE_ADDR_CLAMP);
             sceGxmTextureSetVAddrMode(&style_texture_, SCE_GXM_TEXTURE_ADDR_CLAMP);
         }
-        if (!material_memory_.allocate(resources.materials.size(), Mapping::Data, error) ||
-            !font_memory_.allocate(resources.font.size(), Mapping::Data, error))
+        if (!material_memory_.allocate(resources.materials.size(), Mapping::Data, error, true) ||
+            !font_memory_.allocate(resources.font.size(), Mapping::Data, error, true))
             return false;
         std::memcpy(material_memory_.data, resources.materials.data(), resources.materials.size());
         std::memcpy(font_memory_.data, resources.font.data(), resources.font.size());
@@ -513,7 +525,7 @@ class GxmDevice final : public Device {
         const uint32_t depth_width = (width_ + SCE_GXM_TILE_SIZEX - 1) & ~(SCE_GXM_TILE_SIZEX - 1);
         const uint32_t depth_height = (height_ + SCE_GXM_TILE_SIZEY - 1) & ~(SCE_GXM_TILE_SIZEY - 1);
         if (!color_memory_.allocate(stride_ * height_ * 4, Mapping::Data, error, true) ||
-            !depth_memory_.allocate(depth_width * depth_height * 4, Mapping::Data, error))
+            !depth_memory_.allocate(depth_width * depth_height * 4, Mapping::Data, error, true))
             return false;
         if (!checked(sceGxmColorSurfaceInit(&color_, SCE_GXM_COLOR_FORMAT_U8U8U8U8_ABGR,
                                             SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE,
@@ -526,6 +538,10 @@ class GxmDevice final : public Device {
                      "GXM depth surface", error))
             return false;
         sceGxmDepthStencilSurfaceSetBackgroundDepth(&depth_, 1.0f);
+        // Sprites use a second scene and must depth-test against terrain.
+        // Tile-local depth is not guaranteed to reach backing memory unless
+        // explicitly stored; emulators can conceal this hardware requirement.
+        sceGxmDepthStencilSurfaceSetForceStoreMode(&depth_, SCE_GXM_DEPTH_STENCIL_FORCE_STORE_ENABLED);
         if (!checked(sceGxmTextureInitLinear(&color_texture_, color_memory_.data,
                                              SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, stride_, height_, 0),
                      "GXM target texture", error))
@@ -534,7 +550,7 @@ class GxmDevice final : public Device {
         sceGxmTextureSetMagFilter(&color_texture_, SCE_GXM_TEXTURE_FILTER_POINT);
         sceGxmTextureSetUAddrMode(&color_texture_, SCE_GXM_TEXTURE_ADDR_CLAMP);
         sceGxmTextureSetVAddrMode(&color_texture_, SCE_GXM_TEXTURE_ADDR_CLAMP);
-        if (!overlay_memory_.allocate(128 * 128 * 4, Mapping::Data, error) ||
+        if (!overlay_memory_.allocate(128 * 128 * 4, Mapping::Data, error, true) ||
             !underlay_memory_.allocate(stride_ * height_ * 4, Mapping::Data, error, true) ||
             !reflection_memory_.allocate(stride_ * height_ * 4, Mapping::Data, error, true))
             return false;
@@ -599,9 +615,10 @@ class GxmDevice final : public Device {
         const auto *color = sceGxmProgramFindParameterByName(vp, "color");
         const auto *surface = sceGxmProgramFindParameterByName(vp, "surface");
         matrix_ = sceGxmProgramFindParameterByName(vp, "mvp");
+        normals_ = sceGxmProgramFindParameterByName(vp, "normals");
         plane_ = sceGxmProgramFindParameterByName(vp, "plane");
         light_ = sceGxmProgramFindParameterByName(vp, "light");
-        if (!position || !color || !matrix_ || !surface || !plane_) {
+        if (!position || !color || !matrix_ || !surface || !plane_ || !normals_ || !light_) {
             error = "GXM missing geometry parameters";
             return false;
         }
@@ -665,9 +682,9 @@ class GxmDevice final : public Device {
             return false;
         sceGxmFinish(context_);
         count_ = 0;
-        if (!vertices_.allocate(packed.vertices.size() * sizeof(engine::GeometryVertex), Mapping::Data,
-                                error) ||
-            !indices_.allocate(packed.indices.size() * sizeof(uint16_t), Mapping::Data, error))
+        if (!vertices_.allocate(packed.vertices.size() * sizeof(engine::GeometryVertex), Mapping::Data, error,
+                                true) ||
+            !indices_.allocate(packed.indices.size() * sizeof(uint16_t), Mapping::Data, error, true))
             return false;
         std::memcpy(vertices_.data, packed.vertices.data(),
                     packed.vertices.size() * sizeof(engine::GeometryVertex));
@@ -713,7 +730,7 @@ class GxmDevice final : public Device {
             const auto &range = ranges_[item.geometry];
             ok = draw(static_cast<const engine::GeometryVertex *>(vertices_.data) + range.vertex_offset,
                       static_cast<const uint16_t *>(indices_.data) + range.index_offset, range.index_count,
-                      item.mvp, error, clip_plane(item.model));
+                      item.mvp, error, clip_plane(item.model), engine::normal_matrix(item.model));
         }
         const int ended = sceGxmEndScene(context_, nullptr, nullptr);
         if (!ok || !checked(ended, "GXM end", error))
@@ -850,7 +867,7 @@ class GxmDevice final : public Device {
         const int ended = sceGxmEndScene(context_, nullptr, nullptr);
         if (!ok || !checked(ended, "GXM display end", error))
             return false;
-        const DisplayFrame frame{display_memory_[back_].data};
+        const DisplayFrame frame{display_memory_[back_].data, display_pacing_};
         if (!checked(sceGxmPadHeartbeat(&display_color_[back_], display_sync_[back_]), "GXM heartbeat",
                      error) ||
             !checked(sceGxmDisplayQueueAddEntry(display_sync_[front_], display_sync_[back_], &frame),

@@ -6,8 +6,9 @@ show-welcome: false
 warn-missing-firmware: false
 backend-renderer: OpenGL
 v-sync: @EMULATOR_HOST_VSYNC@
-# Gently smooth the final display without changing ASCII glyph coverage.
-screen-filter: Bilinear
+# Match Linux's nearest-sampled ASCII presentation. Optional Bilinear is a
+# host-only preference; never filter encoded scene/material/font textures.
+screen-filter: @SCREEN_FILTER@
 hashless-texture-cache: false
 # Multi-sampler shaders require distinct texture objects in this pinned build.
 texture-cache: true

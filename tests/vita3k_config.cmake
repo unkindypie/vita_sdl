@@ -6,7 +6,7 @@ foreach(required IN ITEMS
     "pref-path: \"${PREF_PATH}\""
     "backend-renderer: OpenGL"
     "v-sync: true"
-    "screen-filter: Bilinear"
+    "screen-filter: Nearest"
     "warn-missing-firmware: false"
     "hashless-texture-cache: false"
     "texture-cache: true"
@@ -30,8 +30,13 @@ foreach(required IN ITEMS
 endforeach()
 set(SURFACE_SYNC ON)
 set(HOST_VSYNC OFF)
+set(SCREEN_FILTER Bilinear)
 include("${CMAKE_CURRENT_LIST_DIR}/../cmake/prepare_vita3k.cmake")
 file(READ "${OUTPUT}" config)
+string(FIND "${config}" "screen-filter: Bilinear" found)
+if(found EQUAL -1)
+  message(FATAL_ERROR "Explicit soft-display preference must be preserved")
+endif()
 string(FIND "${config}" "disable-surface-sync: false" found)
 if(found EQUAL -1)
   message(FATAL_ERROR "GPU diagnostics require explicit surface synchronization")
@@ -39,4 +44,11 @@ endif()
 string(FIND "${config}" "v-sync: false" found)
 if(found EQUAL -1)
   message(FATAL_ERROR "Finite smoke must permit disabling host swap waits")
+endif()
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DOUTPUT=${OUTPUT}.invalid"
+  "-DPREF_PATH=${PREF_PATH}" -DSCREEN_FILTER=Unknown
+  -P "${CMAKE_CURRENT_LIST_DIR}/../cmake/prepare_vita3k.cmake"
+  RESULT_VARIABLE invalid_result OUTPUT_QUIET ERROR_QUIET)
+if(invalid_result EQUAL 0)
+  message(FATAL_ERROR "Unknown display filters must be rejected")
 endif()

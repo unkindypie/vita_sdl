@@ -10,6 +10,7 @@
 #include "platform/engine_hooks.h"
 #include "platform/input.h"
 #include "platform/native_touch.h"
+#include "platform/boot_screen.h"
 #include "platform/shader_probe.h"
 #include "scripting/probe.h"
 #include "scripting/runtime.h"
@@ -53,6 +54,7 @@ struct Options {
     bool gpu_fixture = false;
     bool no_js = false;
     bool verify_gameplay = false;
+    bool unpaced = false;
     std::string script;
 };
 bool options(int argc, char **argv, Options &out) {
@@ -64,6 +66,8 @@ bool options(int argc, char **argv, Options &out) {
             continue; // Compatibility: GPU is now the sole renderer.
         else if (arg == "--no-js")
             out.no_js = true;
+        else if (arg == "--unpaced")
+            out.unpaced = true;
         else if (arg == "--verify-gameplay")
             out.verify_gameplay = true;
         else if (arg == "--probe-js")
@@ -100,6 +104,7 @@ bool options(int argc, char **argv, Options &out) {
     const int diagnostics =
         static_cast<int>(out.probe) + static_cast<int>(out.probe_gpu) + static_cast<int>(out.gpu_fixture);
     return diagnostics <= 1 &&
+           (!out.unpaced || (diagnostics == 0 && !out.verify_gameplay && (out.frames || out.seconds))) &&
            (!out.gpu_fixture || (!out.smoke && !out.verify_gameplay && out.seconds == 0)) &&
            (!out.smoke || out.frames >= 180 || out.seconds > 0) &&
            (!out.verify_gameplay || (out.smoke && !out.no_js)) && (!out.no_js || out.script.empty());
@@ -148,7 +153,8 @@ int main(int argc, char **argv) {
         std::fprintf(stderr,
                      "Usage: vita_sdl2 [--assets DIR] [--manifest FILE] [--frames N] [--seconds N] [--smoke "
                      "--frames 180+] [--verify-gameplay] [--script FILE | --no-js] [--screenshot FILE.bmp] "
-                     "[--probe-js | --probe-gpu | --gpu-fixture]\nGPU rendering is required. GPU fixture: "
+                     "[--unpaced (finite benchmark only)] [--probe-js | --probe-gpu | --gpu-fixture]\nGPU "
+                     "rendering is required. GPU fixture: "
                      "omit --assets for depth/presentation tests; provide --assets for real terrain.\n");
         return 2;
     }
@@ -183,6 +189,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     std::puts("SDL_INIT_BEGIN video controller timer");
+    port::BootScreen boot_screen;
     uint32_t sdl_flags = SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER;
 #ifdef __vita__
     sdl_flags &= ~SDL_INIT_VIDEO;
@@ -218,6 +225,7 @@ int main(int argc, char **argv) {
     if (prefs)
         port::set_config_path((std::string(prefs.get()) + "asciicker.cfg").c_str());
 #endif
+    boot_screen.progress(10);
     if (!port::validate_assets(opt.assets, opt.manifest, error)) {
         std::fprintf(stderr, "ASSET_ERROR %s\n", error.c_str());
         return 1;
@@ -225,6 +233,7 @@ int main(int argc, char **argv) {
     using Controller = std::unique_ptr<SDL_GameController, decltype(&SDL_GameControllerClose)>;
     std::unique_ptr<port::graphics::DeviceFactory> graphics_factory;
     std::unique_ptr<port::graphics::Device> graphics_device;
+    boot_screen.progress(20);
     graphics_factory = port::graphics::create_device_factory(error);
     if (graphics_factory)
         graphics_device = graphics_factory->create(kColumns * 2 + 4, kRows * 2 + 4, error);
@@ -233,17 +242,21 @@ int main(int argc, char **argv) {
         return 1;
     }
     port::log_stage("PRESENTER gpu-ascii scene=gpu");
+    graphics_device->set_display_pacing(!opt.unpaced);
+    port::log_stage(opt.unpaced ? "PACING unpaced-diagnostic" : "PACING default");
     const char *video_driver = SDL_GetCurrentVideoDriver();
     std::printf("SDL_READY driver=%s renderer=%s grid=%dx%d pixels=%dx%d\n",
                 video_driver ? video_driver : "native", graphics_device->name(), kColumns, kRows, kWidth,
                 kHeight);
     MakeStamp = now_us;
     port::reset_exit();
+    boot_screen.progress(45);
     if (!port::load_scene(opt.assets, opt.smoke ? 1000000 : now_us(), error)) {
         std::fprintf(stderr, "SCENE_ERROR %s\n", error.c_str());
         return 1;
     }
     SceneLifetime scene_lifetime;
+    boot_screen.progress(65);
     std::unique_ptr<engine::SceneBackend> gpu_scene;
     {
         engine::AsciiResources ascii;
@@ -259,6 +272,7 @@ int main(int argc, char **argv) {
         }
         SetSceneBackend(game->renderer, gpu_scene.get());
     }
+    boot_screen.progress(85);
     InitAudio(); // Device failure is visible and degrades to silent gameplay.
     AudioMute(game->mute);
     if (opt.verify_gameplay)
@@ -311,11 +325,12 @@ int main(int argc, char **argv) {
         return inside;
     };
     port::log_stage("controller.ready");
+    boot_screen.progress(95);
     std::vector<AnsiCell> cells(kColumns * kRows);
     // Rolling bounded profiling storage; safe for arbitrarily long play sessions.
     std::vector<double> scene_ms, script_ms, conversion_ms, upload_ms, present_ms, total_ms;
-    std::vector<double> collect_ms, reflection_ms, primary_ms;
-    for (auto *samples : {&collect_ms, &reflection_ms, &primary_ms})
+    std::vector<double> collect_ms, reflection_ms, primary_ms, game_ui_ms;
+    for (auto *samples : {&collect_ms, &reflection_ms, &primary_ms, &game_ui_ms})
         samples->reserve(3600);
     for (auto *samples : {&scene_ms, &script_ms, &conversion_ms, &upload_ms, &present_ms, &total_ms})
         samples->reserve(3600);
@@ -618,6 +633,11 @@ int main(int argc, char **argv) {
             record(collect_ms, timings.collect_ms, frame);
             record(reflection_ms, timings.reflection_ms, frame);
             record(primary_ms, timings.primary_ms, frame);
+            // Subtract contiguous backend stages per frame BEFORE computing
+            // percentiles. Subtracting stage medians would misattribute stalls.
+            // This remainder includes physics/AI/JS and upstream UI generation.
+            record(game_ui_ms, std::max(0.0, (scene_end - scene_start) / 1000.0 - timings.collect_ms -
+                                                timings.reflection_ms - timings.primary_ms), frame);
         }
         record(script_ms, (port::script_time_us() - script_start) / 1000.0, frame);
         constexpr const char *hints = "MOVE WASD/STICK | CAMERA Q E/L R | JUMP SPACE/O | ATTACK ENTER/X | "
@@ -655,8 +675,10 @@ int main(int argc, char **argv) {
         }
         if (reload_trace)
             port::log_stage("RELOAD_TRACE present.end");
-        if (frame == 0)
+        if (frame == 0) {
+            boot_screen.close();
             port::log_stage("present.ready");
+        }
         const uint64_t end = now_us();
         record(scene_ms, (scene_end - scene_start) / 1000.0, frame);
         record(conversion_ms, (conversion_end - scene_end) / 1000.0, frame);
@@ -677,6 +699,18 @@ int main(int argc, char **argv) {
                           frame, game->player.pos[0], game->player.pos[1], game->player.pos[2],
                           game->prev_yaw);
             port::log_stage(progress);
+        }
+        if (frame % 120 == 0) {
+            char timing[512];
+            std::snprintf(timing, sizeof(timing),
+                          "LIVE_PROFILE frame=%d total_p50=%.2f scene_p50=%.2f collect_p50=%.2f "
+                          "reflection_p50=%.2f primary_p50=%.2f overlay_p50=%.2f present_p50=%.2f "
+                          "js_p50=%.3f game_ui_p50=%.2f ms",
+                          frame, percentile(total_ms, .5), percentile(scene_ms, .5),
+                          percentile(collect_ms, .5), percentile(reflection_ms, .5),
+                          percentile(primary_ms, .5), percentile(conversion_ms, .5),
+                          percentile(present_ms, .5), percentile(script_ms, .5), percentile(game_ui_ms, .5));
+            port::log_stage(timing);
         }
     }
     if (opt.verify_gameplay) {
@@ -746,10 +780,11 @@ int main(int argc, char **argv) {
         std::snprintf(report, sizeof(report),
                       "GPU_PROFILE cpu_wall_ms collect_p50=%.2f collect_p95=%.2f reflection_p50=%.2f "
                       "reflection_p95=%.2f primary_p50=%.2f primary_p95=%.2f overlay_p50=%.2f "
-                      "present_wait_p50=%.2f (overlaps_scene=1)",
+                      "present_wait_p50=%.2f game_ui_p50=%.2f game_ui_p95=%.2f (overlaps_scene=1)",
                       percentile(collect_ms, .5), percentile(collect_ms, .95), percentile(reflection_ms, .5),
                       percentile(reflection_ms, .95), percentile(primary_ms, .5), percentile(primary_ms, .95),
-                      percentile(conversion_ms, .5), percentile(present_ms, .5));
+                      percentile(conversion_ms, .5), percentile(present_ms, .5), percentile(game_ui_ms, .5),
+                      percentile(game_ui_ms, .95));
         port::log_stage(report);
     }
     if (opt.smoke) {

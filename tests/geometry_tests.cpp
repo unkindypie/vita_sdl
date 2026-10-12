@@ -12,16 +12,35 @@ int main() {
         }
     };
     std::string error;
-    const auto tall_window = engine::fit_viewport({960,1000});
+    auto normal_model = engine::identity_matrix();
+    normal_model[0] = 2;
+    normal_model[5] = 4;
+    normal_model[10] = -0.5F;
+    normal_model[12] = 123;
+    auto normal = engine::normal_matrix(normal_model);
+    check(std::abs(normal[0] - 0.5F) < 1e-6F && std::abs(normal[5] - 0.25F) < 1e-6F &&
+              std::abs(normal[10] + 2) < 1e-6F && std::abs(normal[12]) < 1e-6F,
+          "normal inverse transpose preserves scale/reflection and ignores translation");
+    normal_model[0] = 0;
+    normal = engine::normal_matrix(normal_model);
+    const auto normal_identity = engine::identity_matrix();
+    for (size_t i = 0; i < normal.size(); ++i)
+        check(std::abs(normal[i] - normal_identity[i]) < 1e-6F, "singular normal transform fallback");
+    const auto tall_window = engine::fit_viewport({960, 1000});
     check(tall_window.x == 0 && tall_window.y == 228 && tall_window.width == 960 && tall_window.height == 544,
           "desktop letterbox preserves native aspect");
-    const auto wide_window = engine::fit_viewport({1920,544});
+    const auto wide_window = engine::fit_viewport({1920, 544});
     check(wide_window.x == 480 && wide_window.y == 0 && wide_window.width == 960 && wide_window.height == 544,
           "desktop pillarbox preserves native aspect");
-    check(engine::fit_viewport({0,544}).width == 0 && engine::fit_viewport({1,1}).height == 1,
+    check(engine::fit_viewport({0, 544}).width == 0 && engine::fit_viewport({1, 1}).height == 1,
           "invalid and tiny viewport bounds");
     auto geometry = engine::depth_fixture();
     check(engine::valid_geometry(geometry, error), "fixture bounds");
+    auto lit_geometry = geometry;
+    lit_geometry.vertices[0].surface = {-1, 0, 0, 3};
+    check(engine::valid_geometry(lit_geometry, error), "signed lit normal accepted");
+    lit_geometry.vertices[0].surface = {0, 0, 0, 3};
+    check(!engine::valid_geometry(lit_geometry, error), "zero lit normal rejected");
     auto bad = geometry;
     bad.indices[0] = 65535;
     check(!engine::valid_geometry(bad, error), "invalid index");

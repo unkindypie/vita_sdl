@@ -54,7 +54,7 @@ now essential for the performance objective, not replaceable by emulator FPS.
   compiler or shader/pass errors. No bundled proprietary compiler module.
 - **GPU-005:** Preserve offline gameplay parity and the material-driven ASCII
   style/pastel grading. Explicitly record intentional visual differences.
-- **GPU-006:** Target sustained >=30 FPS on real Vita, JS/audio enabled, matched
+- **GPU-006:** Target sustained 60 FPS on real Vita, JS/audio enabled, matched
   representative routes and bounded memory; report median/p95 and device clocks.
   Keep this criterion pending until measured on hardware.
 
@@ -71,6 +71,6 @@ now essential for the performance objective, not replaceable by emulator FPS.
   hardware-only acceptance; `docs/VALIDATION.md` records commands/results.
 
 Linux and emulator checks substitute for device tests as requested. They do
-not establish physical controls/speakers/suspend behavior or stable 30 FPS /
+not establish physical controls/speakers/suspend behavior or stable 60 FPS /
 actual memory budget on Vita. Hardware certification and independent upstream
 asset-rights clearance remain release gates, not silently passed tasks.

@@ -8,8 +8,8 @@ recorded. A successful emulator run is not a hardware performance result.
 ## Outcome and gates
 
 Make the existing offline game playable with GPU scene rendering, preserving
-its ASCII identity and pastel presentation. Target sustained **30 FPS** at
-960x544 output; 60 FPS is a stretch target, not a promise. Use the 120x68 cell
+its ASCII identity and pastel presentation. Target sustained **60 FPS** at
+960x544 output (user refinement 2026-10-12). Use the 120x68 cell
 grid initially. Lower internal sampling, dynamic quality, caching and batching
 are allowed only as explicit measured options, not hidden feature removal.
 
@@ -28,6 +28,53 @@ status/evidence and leave the previous working backend usable. Visual parity
 means explicit feature comparison; exact pixel identity is only required for
 unchanged reference paths. Record intentional differences, never hide missing
 geometry behind broad image-error tolerances.
+
+## Performance and art recovery pass — 2026-10-12
+
+Additional visual-parity follow-up: [matched native-resolution captures](docs/VISUAL_PARITY.md).
+Two route endpoints have normalized RGB RMSE ~0.00116 between Linux and GXM;
+no broad lighting mismatch reproduced. Emulator presentation now defaults to
+Nearest, with Bilinear opt-in. Physical display and other scenes remain open.
+
+Physical baseline remains 3–4 FPS; interactive Qt emulator ~20 FPS. Do not
+extrapolate emulator/physical speed ratios. The hardware target is a 16.67 ms
+frame budget; emulator benchmarks must distinguish guest display pacing,
+frontend VSync and unpaced execution. No test-harness script failures in benchmarks.
+
+1. [x] Record matched Qt normal-JS/audio runs with host VSync on/off, same
+   scripted route and profile, plus SDL comparison. Preserve raw stage logs.
+   Identify waits versus collection/JS; fix frontend pacing only if measured.
+2. [x] Remove native reflection framebuffer transfer using owned target
+   rotation, then reduce redundant synchronization without unsafe buffer reuse.
+   Run native/GL depth, target-recreation, composition and gameplay checks.
+3. [x] Restore authored mesh lighting (previously unlit RGB with a generic
+   half-block conversion), improve ASCII surface detail and retain pastel
+   contrast without flattening geometry. Add lighting/normal fixtures and
+   inspect matched land/water/entity captures. Do not drop ASCII/reflections.
+4. [x] Re-profile matched routes after changes; Linux tests, ASan, accelerated
+   GPU fixtures, native emulator fixtures and gameplay parity. Document exact
+   medians/p95, visible differences and remaining bottlenecks.
+5. [ ] Final physical-Vita acceptance: visible player/entities, preserved art,
+   60 FPS sustained movement/combat/water with JS/audio. This requires device
+   evidence and cannot be checked off by emulator success.
+
+Task order is profiling, native dataflow, art restoration, regression/finite routes,
+then hardware acceptance. Keep this checklist current; no completion claims
+while the physical 60 FPS gate remains unverified.
+
+Evidence/details: [performance and art recovery](docs/PERFORMANCE_RECOVERY.md).
+The sprite-underlay blit experiment failed native rear-depth checks and was
+removed; its synchronized transfer remains. Reflection target rotation passed.
+Initial final-code Qt headroom: 3600 frames, JS/audio enabled, median 5.27 ms,
+p95 7.93 ms, wall elapsed 20.5 s (~176 frames/s overall). Matching no-JS median
+5.14 ms/p95 7.75 ms; final SDL JS median 5.17 ms/p95 7.80 ms. These are emulator
+results, not predictions for the physical device.
+Final paced Qt comparisons with host VSync ON/OFF both reached median 16.66 ms
+(p95 16.71/16.72 ms) after native resource changes. Earlier slow-path results
+cannot be attributed solely to the host toggle. Mesh lighting/detail fixtures,
+native captures and host/native gameplay checks passed; exact old-renderer visual
+parity, sustained combat/worst-case routes and the long soak remain separate open
+items. Marking this recovery pass does not close those older acceptance gates.
 
 ## Architecture
 
@@ -146,8 +193,8 @@ not require subclassing Asciicker's `Game`, item or physics classes.
   wait timings. Report median/p95 and peak memory. Avoid double-counted timers.
 - [ ] Optimize the actual limiting stage: static caches, visibility, draw-call
   merging, shader LUTs, target formats, overdraw, bounded uploads. CPU simulation
-  may still need work; a GPU rewrite alone does not guarantee 30 FPS.
-- [ ] Require sustained >=30 FPS target route with no missing gameplay/features
+  may still need work; a GPU rewrite alone does not guarantee 60 FPS.
+- [ ] Require sustained 60 FPS target route with no missing gameplay/features
   and acceptable frame pacing before claiming the hardware performance goal.
   GPU is the sole default under the user's no-legacy-renderer refinement.
 - [x] Remove the superseded CPU rasterizer and presenter experiments once the
@@ -222,7 +269,7 @@ References inspected 2026-10-11:
 - Native GXM now completes the 600-frame gameplay parity/reload run with
   `SMOKE_OK` and clean shutdown. Its GPU screenshot was inspected. The finite
   SDL emulator frontend disables host VSync to avoid Wayland frame-callback
-  stalls; interactive Qt still keeps host VSync. This does not change Vita
+  stalls; the recovery pass now disables host VSync in Qt too. This does not change Vita
   display synchronization or prove physical-device performance.
 - Authored mesh line edges now become depth-tested GPU ribbons. Native front
   touch is polled explicitly because the dedicated GXM context does not start
@@ -239,3 +286,11 @@ References inspected 2026-10-11:
 - Migration still has open gates: representative water/reflection and sprite
   overlap checks, update/render separation, final profiling and hardware FPS.
   Default GPU selection is not a claim that physical performance passed.
+- Physical-device feedback after migration: 3–4 FPS and missing player/entities.
+  Hardware acceptance is failed. Repair explicitly stores terrain depth for the
+  second sprite scene, tests front/rear dynamic depth, places immutable GPU
+  geometry in CDRAM, and rejects offscreen sprite images before cell iteration.
+  Performance improvement and missing-entity repair need hardware confirmation.
+- Native startup displays an asset-independent LOADING/progress screen before
+  SDL/shader compilation. Live profiles persist every 120 frames so hardware
+  diagnosis does not depend on exiting the game cleanly.

@@ -175,6 +175,7 @@ bool run_world_fixture(const std::string &assets, int frames, const std::string 
         timings[static_cast<size_t>((timings.size() - 1) * 0.95)]);
     log_stage(message);
     return check_ascii_resolve(*factory, ascii, screenshot.empty() ? "" : screenshot + "-ascii.bmp", error) &&
-           check_ascii_resolve(*factory, ascii, "", error, true);
+           check_ascii_resolve(*factory, ascii, "", error, true) &&
+           check_ascii_resolve(*factory, ascii, "", error, false, true);
 }
 } // namespace port::asciicker

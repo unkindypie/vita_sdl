@@ -53,7 +53,7 @@ class GlDevice final : public Device {
     Gl gl_;
     bool gl_ready_ = false;
     GLuint program_ = 0, vertex_ = 0, index_ = 0, target_ = 0, color_ = 0, depth_ = 0;
-    GLint matrix_ = -1, plane_ = -1;
+    GLint matrix_ = -1, plane_ = -1, normals_ = -1;
     GLuint ascii_program_ = 0, material_texture_ = 0, font_texture_ = 0, quad_ = 0;
     GLuint style_program_ = 0, style_target_ = 0, style_texture_ = 0;
     GLuint surface_texture_ = 0;
@@ -187,6 +187,7 @@ class GlDevice final : public Device {
         }
         matrix_ = gl_.glGetUniformLocation(program_, "mvp");
         plane_ = gl_.glGetUniformLocation(program_, "plane");
+        normals_ = gl_.glGetUniformLocation(program_, "normals");
         if (matrix_ < 0) {
             error = "Missing OpenGL mvp uniform";
             return false;
@@ -445,6 +446,8 @@ class GlDevice final : public Device {
             gl_.glUniform4f(plane_, plane[0], plane[1], plane[2], plane[3]);
             const auto &range = ranges_[draw.geometry];
             gl_.glUniformMatrix4fv(matrix_, 1, GL_FALSE, draw.mvp.data());
+            const auto normals = engine::normal_matrix(draw.model);
+            gl_.glUniformMatrix4fv(normals_, 1, GL_FALSE, normals.data());
             const size_t base = range.vertex_offset * sizeof(engine::GeometryVertex);
             gl_.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(engine::GeometryVertex),
                                       reinterpret_cast<const void *>(base));
