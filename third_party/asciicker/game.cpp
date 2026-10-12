@@ -17,6 +17,9 @@
 #include "lexer.h"
 
 #include "mainmenu.h"
+#include "games/asciicker/projectiles.h"
+#include "games/asciicker/interactions.h"
+#include "games/asciicker/terrain_changes.h"
 
 uint8_t ConvertToCP437(uint32_t uc)
 {
@@ -5798,6 +5801,8 @@ void Game::Render(uint64_t _stamp, AnsiCell* ptr, int width, int height)
 
 	int ss[2] = { scene_shift/2 , 0 };
 
+	port::asciicker::advance_projectiles(_stamp);
+	port::asciicker::update_interactions(renderer, world, player.pos, player_inst);
 	::Render(renderer, _stamp, terrain, world, (float)water, 1.0f, io.yaw, io.pos, lt,
 		width, height, ptr, player_inst, ss, perspective);
 
@@ -9673,7 +9678,6 @@ struct MatIDStamp
 		uint16_t* visual = GetTerrainVisualMap(p);
 
 		bool diff = false;
-		diff = true;
 
 		for (int v = 0, i = 0; v < VISUAL_CELLS; v++)
 		{
@@ -9693,8 +9697,10 @@ struct MatIDStamp
 			}
 		}
 
-		if (diff)
+		if (diff) {
 			UpdateTerrainVisualMap(p);
+			port::asciicker::mark_terrain_changed(x,y);
+		}
 	}
 
 	int matid;

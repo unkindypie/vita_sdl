@@ -5,6 +5,62 @@ and Vita3K substitute for device checks; real hardware acceptance remains open.
 
 ## Current commands and outcomes
 
+### GPU rewrite Stage 1 / compiler prerequisite (2026-10-11)
+
+The user reports **2–3 FPS on a physical Vita**. Device/clock settings and
+hardware stage timings are not yet supplied. The active staged rewrite is in
+`GPU_REWRITE_PLAN.md`; Stage 1 is a structural extraction, not a GPU scene or
+an FPS fix. Stage 2 begins with an explicit native shader-compiler probe.
+
+- `make test`: **11/11 pass**. Added independent engine contract validation,
+  per-renderer scene/camera/picking dispatch, lifecycle/failure/isolation tests,
+  and explicit Linux rejection of the Vita-only compiler probe. Existing
+  gameplay, scripting, audio, packaging and glyph tests remain enabled.
+- `make test-asan`: **11/11 pass**, no sanitizer finding.
+- `make gpu-test`: accelerated OpenGL glyph readback still matches CPU output.
+  This remains a glyph test, not new GPU scene validation.
+- `make run ARGS='--smoke --frames 240 --screenshot build/linux/engine-final.bmp'`:
+  movement/camera/grounded `SMOKE_OK`, 243 script calls, zero errors/audio drops,
+  clean shutdown. The final framebuffer is byte-identical to the saved
+  pre-refactor run; SHA-256
+  `aba931de294994746e30a566feed342678179b59556e2e7fcd2dccfa53c97770`.
+  Inspected the matching Linux capture. Timings were collected during parallel
+  builds/tests and are not used to claim performance improvement.
+- `make verify-vpk`: Vita cross-compilation/packaging succeeds; **257 required
+  entries** verified, including the replacement indexed photo icon.
+- `make vita3k-smoke VITA3K=/tmp/asciicker-vita3k/Vita3K VITA3K_DIR=build/vita3k-engine-stage1-final`:
+  guest logs `PARITY_OK`, `GAMEPLAY_CHECKS_OK`, 600-frame `SMOKE_OK` and
+  `SHUTDOWN_OK`. Eight script exceptions are intentional parity injections;
+  zero dropped audio commands. Normal CPU play does not require the compiler.
+- `make vita3k VITA3K=/tmp/asciicker-vita3k/Vita3K VITA3K_FRONTEND=sdl VITA3K_DIR=build/vita3k-shader-probe VITA3K_ARGS='--probe-gpu'`:
+  expected nonzero exit and guest `GPU_SHADER_PROBE_ERROR Missing
+  ur0:data/libshacccg.suprx` with installation guidance. This verifies the
+  missing-prerequisite path only. Compilation success, GXM drawing and physical
+  Vita performance are **not verified**; a legitimate user-supplied module is
+  needed for native shader testing. No module was downloaded/extracted.
+
+Fresh managed emulator setup currently fails HTTP 404 for the original pinned
+GitHub asset. These runs used the existing cached executable with embedded build
+ID `b75d5e62`, not an unchecked newer release. A fresh-install pin update remains
+pending. Native shader diagnostics use only weak public VitaSDK SceShaccCg
+stubs from the existing pinned image; no new compiler-wrapper code is vendored.
+
+### Real-device installation icon fix (2026-10-11)
+
+The previous packaged bubble icon was 128x128 RGBA, not indexed PNG. Following
+the user's VitaShell `0x8010113D` report, replaced it with a square crop from
+the user-supplied `packaging/IMG_4564.JPG`. The original external JPEG is left
+untouched. Conversion strips icon metadata and produces a non-interlaced,
+128x128, 8-bit indexed PNG; reproduction instructions are in
+`packaging/README.md`. The source JPEG is not packaged.
+
+`make verify-vpk` passes (257 required entries). Inspecting the VPK's actual
+`sce_sys/icon0.png` confirms the required format and a SHA-256 identical to
+`packaging/icon.png`. CMake now rejects an incompatible source icon during
+configuration; host tests cover the valid icon and rejection of the source
+JPEG. `make test`: **8/8 pass**. Real-device reinstallation is still needed to confirm the reported error
+is resolved; emulator acceptance alone is not proof.
+
 ### Softer pastel presentation (2026-10-10)
 
 - Added a shared constexpr display palette: slate instead of pure black,
@@ -372,3 +428,244 @@ with aspect-preserving letterboxing. Generated capture: `build/vita3k/window.png
   menu transition occurs after its press, preventing a held movement key.
 - Texture upload locks the SDL streaming texture and honors its actual pitch;
   this avoids assuming contiguous backend rows but did not solve Vita3K's fault.
+# Native shader compiler success-path check — 2026-10-11
+
+Following explicit user authorization, downloaded the public
+[AnimMouse/SceShaccCg module](https://github.com/AnimMouse/SceShaccCg)
+at commit `f9511fc20ce905704f384b3a99a17c5e97f9a92c`. SHA-256 matched
+`188adb8c34c3983d63244c32d981fd7b518a8dcfd200f5886233fface6b5fa40`.
+Stored only under ignored `build/tools/shader-compiler/` and the local
+`build/vita3k-shader-probe/storage/ur0/data/` profile; no firmware extraction,
+repository asset, or VPK inclusion. Public availability/checksum verification
+does not independently establish redistribution rights.
+
+Command: `make vita3k VITA3K=/tmp/asciicker-vita3k/Vita3K VITA3K_FRONTEND=sdl VITA3K_DIR=build/vita3k-shader-probe VITA3K_ARGS='--probe-gpu'`.
+Vita compilation/packaging and emulator execution completed successfully.
+Latest guest stage log:
+`GPU_SHADER_PROBE_OK vertex_bytes=340 fragment_bytes=212 GXM_program_check=pass`.
+Host output: `/tmp/asciicker-shader-probe-installed.log`.
+This validates native runtime compilation and program structure only, not GPU
+drawing, visual parity, or physical Vita performance. No application source
+changed for this check; prior host test results remain applicable.
+
+## GPU graphics ownership and terrain extraction — 2026-10-11
+
+Implemented independent native GXM/OpenGL geometry buffers, color/depth targets,
+startup shader compilation, local-U16 batch packing, GPU-only display resolve
+and explicit resource/queue ownership. The CPU renderer is not called by these
+diagnostics. Removed the unused `asciicker_core` CMake compatibility alias;
+factored the probe/compiler into one implementation, shared native GXP storage
+across devices and updated the plan to remove legacy rasterization after the
+playable replacement is validated (not maintain two shipping backends).
+
+Commands/results:
+
+- `make test`: **15/15 pass**, including software-Mesa actual GPU geometry,
+  display-buffer pixels and full-map terrain rendering, plus existing gameplay,
+  script/audio/asset checks. Log `/tmp/asciicker-gpu-final-tests.log`.
+- `make test-asan`: **15/15 pass**. GPU fixtures retain ASan bounds/UAF checks,
+  but disable leak detection only for those two EGL/llvmpipe tests: an initial
+  unsuppressed run found 5,856 bytes retained by SDL3/offscreen driver/JIT
+  allocations after teardown. Other tests retain leak detection. Do not claim
+  leak-free native/GL ownership from that result. Log
+  `/tmp/asciicker-gpu-final-asan.log`.
+- `make gpu-test`: pass on AMD Radeon/radeonsi under Wayland; glyph reference,
+  native-style geometry/depth/display fixture and real terrain. Inspect captures
+  under `build/linux/gpu-fixture.bmp` and `gpu-terrain.bmp`. Log
+  `/tmp/asciicker-gpu-final-host-gpu.log`.
+- `make run ARGS='--smoke --frames 240 --screenshot build/linux/gpu-migration-gameplay.bmp'`:
+  `SMOKE_OK`, scripts 243 / errors 0, audio dropped 0, clean shutdown. Inspected
+  framebuffer: normal pastel ASCII map, HUD and characters still render. This
+  is legacy playable-game regression evidence, **not** GPU game performance.
+  Log `/tmp/asciicker-gpu-stage3-gameplay.log`.
+- `make verify-vpk`: Vita compilation/packaging and **257 required entries**
+  pass. Log `/tmp/asciicker-gpu-final-vpk.log`.
+- `make vita3k-gpu-test VITA3K=/tmp/asciicker-vita3k/Vita3K VITA3K_DIR=build/vita3k-shader-probe`:
+  pass with cached exact emulator build `b75d5e62`, OpenGL, surface sync enabled
+  explicitly for readback, and the locally installed compiler. The default
+  emulator asset still returns 404; no fresh-download success is claimed. Log
+  `/tmp/asciicker-gpu-final-vita3k.log` and latest guest stage-log sections.
+
+Geometry fixture checks near-first/far-last depth, rotation, separate local-U16
+draw ranges, invalid-upload rejection, row padding/orientation, deterministic
+target reuse, GPU display pixels and 127x93 -> 244x140 -> 127x93 transactional
+recreation. Shared geometry instances are transformed in vertex shaders; checks
+cover duplicate resource references, translated/offscreen draws and rejection
+of nonexistent resources. Final native stages report `depth=pass orientation=pass
+reuse=pass display=pass instances=pass` for all three targets and
+`GPU_FIXTURE_OK frames=360`.
+
+Two failures were diagnosed rather than bypassed: immediate address recycling
+after freeing a smaller target produced black readback on this emulator; target
+replacement now retains the old target until its replacement validates. GXM
+display texture bounds now clamp/inset to valid texels, avoiding dark border
+samples from padded storage. Wayland does not retain readable front-buffer
+contents after swap, so the Linux diagnostic replays only the GPU resolve and
+captures the actual window draw buffer before swapping it; no scene simulation
+or CPU rasterization is replayed.
+
+Real-map terrain results: all **4,876 patches**, **102 spatial chunks**,
+**121,900 vertices**, **156,032 triangles** uploaded once; original height,
+diagonal, visual and dark metadata verified against the loaded map. Both GPU
+backends report **29,114 covered pixels**; final 244x140 terrain captures have
+zero differing pixels. Rotated 244x140 triangle captures show small raster-edge
+differences between GL and GXM; feature/landmark checks pass, but arbitrary GPU
+pixel identity is not asserted. Earlier 127x93 triangle captures matched.
+
+Matched 120-frame terrain diagnostic (not the playable game): Linux AMD
+submit/wait p50 **0.41 ms**, p95 **3.96 ms**, collection **28.12 ms**, upload
+**6.16 ms**; Vita3K native GXM p50 **16.64 ms**, p95 **16.67 ms**, collection
+**136.23 ms**, upload **16.26 ms**. Native presentation waits for vblank; GL
+submission is asynchronous and is not a GPU execution timer. Surface-sync
+diagnostics and uncontrolled host contention also prevent using these figures
+as shipping/hardware FPS comparisons. No CPU readback occurs in either normal
+presentation path; fixtures perform explicit diagnostic captures outside the
+measured frame loop.
+
+Remaining: production camera/query and update/render decoupling, meshes,
+material-driven ASCII/lighting, water/reflections, sprites/UI composition and
+GPU-enabled gameplay parity. Normal game rendering is still CPU-based during
+migration. Physical Vita shader boot, visual checks and >=30 FPS acceptance
+remain **unverified**; no hardware-performance improvement is claimed.
+# GPU ASCII/material stage — 2026-10-11
+
+The world diagnostic now draws terrain and static meshes through GL/GXM and
+resolves CP437 material glyphs, foreground/background and pastel colors on GPU.
+It is not the playable GPU game: animated sprites, water/reflections, gameplay
+proximity/UI integration, update separation and hardware profiling remain.
+Normal gameplay still uses its temporary legacy renderer. No hardware speedup
+or full feature parity is claimed by this entry.
+
+- `make test`: 15/15 pass, including real-map surface-atlas gutters, exhaustive
+  material/font extraction and independent orthographic/perspective camera
+  projection/rays. Terrain picking works before any renderer exists.
+- `make test-asan`: 15/15 pass after fixing upstream `World::Rebuild`'s scratch
+  allocation leak when no instance uses the BSP tree. The documented external
+  EGL/JIT leak-detection exception still applies to GPU tests only.
+- `make gpu-test`: accelerated AMD/radeonsi world and ASCII pixel checks pass.
+  Material-only resolve checked 866,140 nonboundary display pixels on this
+  desktop's window size. The four-sample majority regression also runs in the
+  headless world fixture. Pixel expectations come from source font/material
+  texels, not a copied CPU scene renderer.
+- `make run ARGS='--smoke --frames 240 --screenshot build/linux/ascii-migration-smoke.bmp'`:
+  `SMOKE_OK`, movement/camera/grounded pass, 243 JS calls, zero script errors or
+  dropped audio commands, clean shutdown. Framebuffer inspected: original
+  playable ASCII scene/HUD still intact. This is the legacy gameplay check,
+  **not a GPU gameplay benchmark** (total p50 6.70 ms, p95 8.36 ms on this host).
+- `make verify-vpk`: VPK builds; 257 required entries verified.
+- Native GXM world/ASCII checks pass in cached Vita3K via the documented
+  `VITA3K`/`VITA3K_DIR` override. Material-only fixture checked 458,752 display
+  pixels at 960x544; captures inspected. Native world has 117 resources,
+  1,083 mesh instances, 49 visible draws, 22218 terrain metadata pixels and
+  48 deferred mesh lines. Recorded submit+wait p50 16.64 ms / p95 16.68 ms
+  includes emulator display synchronization; it is not real-Vita GPU time.
+- Initial native ASCII validation failed with white terrain. Inspection of the
+  pinned emulator's `bind_texture_without_cache` showed that every sampler
+  shared `cache.textures[0]`. Ordinary texture caching now stays enabled,
+  hashless caching stays disabled, and the config test guards both settings.
+  The identical native shader then passed the source-texel pixel checks.
+- Two subsequent emulator launches crashed before the plain geometry fixture
+  completed (`Unhandled SIGSEGV`, trap). The surface shader declared a sampler
+  even when the fixture selected only direct colors. Both backends now bind a
+  valid neutral fallback texture: shader compilation may hoist sampling outside
+  the selection branch. With this fix, the entire native target passes again:
+  all three target sizes plus world and both uniform/mixed-material ASCII
+  checks. Each ASCII check validates 458,752 pixels at 960x544. Latest successful
+  log: `/tmp/asciicker-ascii-bound-vita3k.log`. No retry loop or suppressed error
+  was added to the launcher.
+
+Logs/captures remain ignored under `/tmp/asciicker-ascii-*`, `build/linux/`
+and `build/vita3k-shader-probe/storage/ux0/data/asciicker/`. Latest appended
+guest stage sections, not old successes in the same log, are authoritative.
+## Playable GPU integration — 2026-10-11
+
+- `make test`: 16/16 pass after adding `gpu_playable_parity`, which runs the real
+  GPU scene on offscreen Mesa with gameplay/JS/audio checks and New Game/reset.
+- `make gpu-test`: actual AMD/radeonsi material checks and new front/rear sprite
+  depth, transparency and overlay pixel checks pass. Shared shader extraction
+  builds through CMake on Linux and Vita.
+- `make run ARGS='--gpu-scene --smoke --frames 600 --verify-gameplay --screenshot build/linux/cell-pass.bmp'`:
+  gameplay parity, movement/camera/grounding and clean shutdown pass. Captures
+  inspected for CP437 terrain/meshes, player/NPCs, HUD and pastel water.
+  This diagnostic intentionally injects script failures and resets gameplay;
+  its maximum frame time and error count are not normal-play benchmarks.
+- Vita3K synchronized 240-frame GPU run completes with `SMOKE_OK` and clean
+  shutdown. The two-pass ASCII version measured total median 60.22 ms / p95
+  78.10 ms, including emulator synchronization; this is not real-Vita speed.
+  Full native parity/reload, latest feature validation and unsynchronized matched
+  performance checks are still pending. Do not infer success from process exit.
+- Shader/source logs and framebuffer captures are ignored under `build/` and
+  `/tmp`. No physical-device performance or suspend/resume checks were performed.
+
+### Follow-up: shader files, native reload and profiling
+
+- `make test`: 16/16 pass with dirty-atlas bounds, row stride and neighbouring
+  texel checks in the real GPU fixture (`/tmp/asciicker-surface-region-tests.log`).
+- Native GXM 600-frame `--gpu-scene --smoke --verify-gameplay` now passes
+  `PARITY_OK`, `GAMEPLAY_CHECKS_OK`, `SMOKE_OK` and `SHUTDOWN_OK`, including New
+  Game/reload. GPU BMP inspected: ASCII terrain, mesh silhouettes, player/NPCs,
+  water/reflections, HUD. Log: `/tmp/asciicker-native-vsync-off.log`.
+- The prior reload stall was examined with a read-only debugger attach. The
+  emulator render thread waited in Wayland swap/frame callbacks while guest
+  `sceGxmFinish` waited for completion. Finite SDL smoke now disables **host**
+  VSync; interactive Qt retains it. Native Vita display sync is unchanged.
+- Matched Linux 600-frame routes with/without normal JS (no parity harness):
+  total p50 2.93/2.92 ms, p95 4.31/4.26 ms; JS p50 0.007/0 ms,
+  p95 0.020/0 ms. Zero script errors/dropped audio commands. AMD/radeonsi host,
+  native builds were concurrently active: these are development measurements.
+  Logs: `/tmp/asciicker-host-js-profile.log`, `/tmp/asciicker-host-nojs-profile.log`.
+- Cached Vita3K 4154, host VSync OFF, surface sync OFF, normal JS: total p50
+  16.66 ms / p95 16.83 ms; JS p50 0.040 / p95 0.072 ms. GPU CPU-wall p50
+  collection 0.96, reflection 2.30, primary 1.58, UI 0.18, present wait 5.56 ms.
+  These stages overlap scene timing, include synchronization, and are **not**
+  physical Vita timings. Log: `/tmp/asciicker-native-js-profile.log`.
+- Official Vita3K 4168-46602447 candidate archive was authenticated against the
+  GitHub release asset SHA-256; its no-JS 600-frame run passes. A matched JS,
+  fixture and parity run must pass before replacing the setup pin. One candidate
+  fixture launch failed visibly with a bounded QuickJS `InternalError:
+  interrupted` during concurrent builds; it is not recorded as a successful run.
+
+### GPU-only cleanup and corrected native fixtures
+
+- The repeated cold fixture bootstrap interruption was reproduced without
+  concurrent builds. Trusted bundled API initialization now shares one total
+  1-second deadline; loaded scripts/console remain 50 ms and callbacks 5 ms.
+  The full native world fixture then reaches rendering successfully. This is
+  a startup-budget fix, not a retry loop or relaxed interactive script limit.
+- The new 4x4 dirty-atlas fixture exposed native GXM's eight-pixel linear row
+  alignment. Full and partial uploads now copy source rows into padded GPU rows.
+  Native checks pass: real world, both 458,752-pixel uniform/mixed ASCII checks,
+  sprite/UI composition and atlas bounds/stride/neighbour retention.
+  Log: `/tmp/asciicker-native-stride-fixture.log`.
+- Official 4168-46602447 passes 600-frame parity/reset and normal JS routes.
+  `make vita3k-setup` successfully downloads/authenticates the replacement pin
+  into the project-managed `build/tools/vita3k/`; validation no longer requires
+  the old `/tmp` emulator checkout. Log: `/tmp/asciicker-refreshed-emulator-setup.log`.
+- Removed the upstream CPU scene rasterizer and SDL glyph-only presenter/test;
+  normal launch is now GPU-only. A small non-rasterizing camera/collision test
+  double preserves headless gameplay/ownership coverage. Missing backends fail
+  explicitly; no software fallback was retained. Historical CPU validation
+  sections above describe superseded builds, not current launch options.
+- `make test`: 16/16 pass after GPU-only cleanup and desktop letterboxing
+  (`/tmp/asciicker-letterbox-tests.log`). `make test-asan`: 16/16 pass on the
+  final formatted/letterboxed implementation (`/tmp/asciicker-gpu-letterbox-asan.log`).
+  Existing external EGL/JIT leak exceptions apply only to GL tests.
+- Default `make run ARGS='--smoke --frames 600 --verify-gameplay --screenshot build/linux/gpu-letterbox.bmp'`:
+  parity/JS/audio/reset, movement/camera/grounding, GPU capture and shutdown pass.
+  GPU framebuffer inspected at 1265x716 with intact Vita aspect and CP437 art.
+  Desktop input uses the same letterbox transform; bar presses are ignored.
+- Default managed-emulator `make vita3k-smoke VITA3K_DIR=build/vita3k-shader-probe`:
+  native GPU parity/reset, capture, `SMOKE_OK` and clean shutdown pass. This uses
+  the existing profile's separately installed compiler. Log:
+  `/tmp/asciicker-gpu-letterbox-native.log`. Its diagnostic timing is not a normal
+  gameplay benchmark and the HUD uses synthetic simulation time.
+- `make verify-vpk`: 257 required entries verified after the GPU-only change
+  (`/tmp/asciicker-gpu-only-vpk.log`). No physical Vita measurements or hardware
+  touch/suspend checks were performed. Transparent overlapping sprite layering
+  and comprehensive water/shoreline visual comparison remain open, as does the
+  legacy game's update/UI orchestration split. These are not marked complete.
+- Final `make gpu-test` passes on AMD/radeonsi after letterboxing: geometry,
+  world, 819,764 nonboundary pixels per uniform/mixed material check, sprite/UI
+  composition and atlas-region updates (`/tmp/asciicker-gpu-only-accelerated.log`).
+  Final VPK verification again reports all 257 required entries present
+  (`/tmp/asciicker-gpu-only-final-vpk.log`).

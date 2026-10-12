@@ -1,11 +1,11 @@
 #!/bin/sh
-# Official Linux x86_64 Vita3K 0.2.1 / 4154-b75d5e62 (2026-10-09).
+# Official Linux x86_64 Vita3K 0.2.1 / 4168-46602447 (2026-10-11).
 # Asset IDs and SHA-256 must be updated together after emulator validation.
 set -eu
 binary=$1
 managed_binary=$2
-checksum=ec24d71a6c75db3eb1a03ceef20ca0f241cac59f28669dd5315172713c054d35
-asset=https://api.github.com/repos/Vita3K/Vita3K/releases/assets/625596737
+checksum=ad62f00603cfcfa2412077a5280510b4f0e450583b592191225717bf3cca0c74
+asset=https://api.github.com/repos/Vita3K/Vita3K/releases/assets/630853783
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 
@@ -20,7 +20,7 @@ if [ "$binary" = "$managed_binary" ] && { [ ! -x "$binary" ] || [ "$installed_ch
     mkdir -p "$parent"
     staging=$(mktemp -d "$parent/vita3k-download.XXXXXX")
     trap 'rm -f "$staging/emulator.zip"; rmdir "$staging" 2>/dev/null || true' EXIT
-    printf '%s\n' 'Downloading pinned official Vita3K build 4154-b75d5e62...'
+    printf '%s\n' 'Downloading pinned official Vita3K build 4168-46602447...'
     curl --fail --location --retry 3 --connect-timeout 30 --max-time 600 \
         -H 'Accept: application/octet-stream' "$asset" -o "$staging/emulator.zip" ||
         fail 'Pinned Vita3K download failed. Retry or use VITA3K=/path/to/Vita3K; do not substitute an unchecked latest build.'

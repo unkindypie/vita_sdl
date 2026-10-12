@@ -1,4 +1,5 @@
 #pragma once
+// Asciicker-specific loading/ownership, not part of the reusable engine API.
 #include <cstdint>
 #include <string>
 #include "game.h"

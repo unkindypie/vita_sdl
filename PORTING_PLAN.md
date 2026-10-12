@@ -6,15 +6,20 @@ remains explicitly unverified; this is version 0.3, not hardware certification.
 
 ## Current execution scope
 
+2026-10-11: the user reports 2–3 FPS on physical Vita and authorizes a full
+native GPU/shader rewrite plus incremental engine/game separation. The active
+implementation roadmap is now [`GPU_REWRITE_PLAN.md`](GPU_REWRITE_PLAN.md).
+This document retains the history/status of the offline-port phases below.
+
 The latest user request supersedes the Phase 2 stopping point: finish the
 offline runtime, including JavaScript, audio, combat, inventory and menus;
 continue Linux/emulator validation and compare performance after JavaScript.
 Use official QuickJS 2026-06-04 on both targets. Hardware-only checks are still
 deferred under the requested Linux/emulator substitution, not implicitly passed.
-The user now authorizes trying GPU migration for more FPS. Optional batched GPU
-glyph presentation is implemented; it has not established a Vita3K speedup, so
-the CPU path stays default. A full GPU scene renderer remains unfinished; its
-dependencies, migration stages and adoption gates are in `docs/GPU_RENDERING.md`.
+The GPU scene renderer now owns normal Linux/Vita presentation. The CPU scene
+rasterizer and obsolete glyph-only experiment have been removed. Hardware FPS,
+remaining visual audits and update/render separation remain open in the active
+rewrite plan. Historical CPU decisions/measurements below are not current setup.
 
 Progress:
 

@@ -1,4 +1,4 @@
-#include "app/scene.h"
+#include "games/asciicker/scene.h"
 #include "platform/engine_hooks.h"
 #include "platform/input.h"
 #include "platform.h"
@@ -6,6 +6,7 @@
 #include "ui/cells.h"
 #include "ui/raster_math.h"
 #include "app/self_test.h"
+#include "simulation_view.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -128,13 +129,16 @@ int main(int argc, char** argv) {
         MakeStamp = stamp;
         // Exercise full load/render/free twice to catch stale global pointers.
         for (int iteration = 0; iteration < 2; ++iteration) {
+            SimulationView view;
             require(port::load_scene(argv[1], 1000000, error), error.c_str());
+            SetSceneBackend(game->renderer, &view);
             game->OnSize(960, 544, 8, 8);
             std::vector<AnsiCell> frame(120 * 68);
             for (int i = 1; i <= 90; ++i) game->Render(1000000 + i * 16667ULL, frame.data(), 120, 68);
             int nonblank = 0;
             for (const auto& cell : frame) if (cell.gl != ' ' && cell.gl != 0) ++nonblank;
-            require(nonblank > 500, "actual scene contains glyphs");
+            require(nonblank > 0 && view.calls == 90 && !GetSceneBackendError(game->renderer),
+                    "independent UI and exactly-once simulation view dispatch");
             require(std::isfinite(game->player.pos[2]), "physics position finite");
             gameplay_checks(argv[1]);
             game->OnKeyb(KEYB_DOWN, A3D_W);
@@ -151,6 +155,7 @@ int main(int argc, char** argv) {
             game->OnFocus(true);
             game->Render(game->stamp + 16667ULL, frame.data(), 120, 68);
             require(std::isfinite(game->player.pos[2]), "foreground render resumes");
+            SetSceneBackend(game->renderer, nullptr);
             port::close_scene();
             require(game == nullptr, "scene released");
         }

@@ -10,6 +10,7 @@ RUN dnf --assumeyes --quiet --setopt=install_weak_deps=False install \
       libasan \
       make \
       SDL2-devel \
+      mesa-dri-drivers mesa-libEGL mesa-libGL \
     >/dev/null \
     && dnf clean all
 

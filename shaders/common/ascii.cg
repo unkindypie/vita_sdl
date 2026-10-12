@@ -1,0 +1,122 @@
+float4 ascii_sample(float2 uv, float flip, float layer) {
+    if (flip < 0.0) uv.y = 1.0 - uv.y;
+    if (layer > 1.5) return tex2D(reflection,uv);
+    if (layer > 0.5) return tex2D(underlay,uv);
+    return tex2D(scene, uv);
+}
+float4 ascii_palette(float index) {
+    float2 address=float2(index-floor(index/128.0)*128.0,floor(index/128.0));
+    return tex2D(font,(address+0.5)/128.0);
+}
+float ascii_coverage(float glyph, float2 pixel) {
+    float2 glyph_xy=float2(glyph-floor(glyph/16.0)*16.0,floor(glyph/16.0));
+    return tex2D(font,(glyph_xy*8.0+pixel+0.5)/128.0).a;
+}
+bool same_material(float4 a, float4 b) {
+    // Material IDs and direct RGB share the metadata channels, not a domain.
+    // A mesh red value matching a terrain ID must not win a terrain vote.
+    return abs(a.a-b.a)<0.01 && abs(a.r-b.r)<0.001;
+}
+float4 resolve_style(float2 uv, float4 layout, float layer, float part) {
+    float2 cell = floor(uv * layout.xy);
+    float2 pixel = floor(frac(uv * layout.xy) * 8.0);
+    float2 size = abs(layout.zw);
+    float2 sample_uv = (cell * 2.0 + 2.5) / size;
+    float4 a = ascii_sample(sample_uv, layout.w,layer);
+    float4 b = ascii_sample(sample_uv + float2(1.0 / size.x, 0.0), layout.w,layer);
+    float4 c = ascii_sample(sample_uv + float2(0.0, 1.0 / size.y), layout.w,layer);
+    float4 d = ascii_sample(sample_uv + 1.0 / size, layout.w,layer);
+    // Stable majority of the four material samples. At a tie, top-left wins.
+    float4 selected = a;
+    if (same_material(c,d)) selected = c;
+    if (same_material(b,c) || same_material(b,d)) selected = b;
+    if (same_material(a,b) || same_material(a,c) || same_material(a,d)) selected = a;
+    if (selected.a>0.25 && selected.a<0.70) {
+        float index=floor((part<0.5 ? selected.r : selected.g)*255.0+0.5);
+        float3 color=index>253.5 ? float3(0.49,0.48,0.78) : ascii_palette(index).rgb;
+        return float4(color,part<0.5 ? selected.b : 0.0);
+    }
+    float material = floor(selected.r * 255.0 + 0.5);
+    float shade = clamp(floor(selected.g * 255.0 + 0.5), 0.0, 15.0);
+    float elevation = clamp(floor(selected.b * 255.0 + 0.5), 0.0, 3.0);
+    if (selected.b * 255.0 > 15.0) {
+        float4 lo0 = ascii_sample(sample_uv-float2(0.0,1.0/size.y),layout.w,layer);
+        float4 lo1 = ascii_sample(sample_uv+float2(1.0/size.x,-1.0/size.y),layout.w,layer);
+        float4 hi0 = ascii_sample(sample_uv+float2(0.0,2.0/size.y),layout.w,layer);
+        float4 hi1 = ascii_sample(sample_uv+float2(1.0/size.x,2.0/size.y),layout.w,layer);
+        float lo = step(16.5/255.0,lo0.b)+step(16.5/255.0,lo1.b);
+        float hi = step(16.5/255.0,hi0.b)+step(16.5/255.0,hi1.b);
+        elevation = lo <= 1.0 ? (hi <= 1.0 ? 3.0 : 2.0) : (hi <= 1.0 ? 0.0 : 1.0);
+        shade = clamp(floor((a.g+b.g+c.g+d.g)*255.0/4.0+0.5),0.0,15.0);
+    }
+    float2 table_uv = float2((shade * 8.0 + elevation * 2.0 + 0.5) / 128.0, (material + 0.5) / 256.0);
+    float4 fg = tex2D(materials, table_uv);
+    float4 bg = tex2D(materials, table_uv + float2(1.0 / 128.0, 0.0));
+    if (selected.a > 0.5) {
+        if (selected.a > 0.70 && selected.a < 0.85) {
+            float ripple = sin(cell.x*0.37+cell.y*0.51+clock*1.8)*0.025;
+            float3 water = float3(0.49,0.48,0.78)+ripple;
+            return part < 0.5 ? float4(water+0.12,250.0/255.0) : float4(water,0);
+        }
+        // Direct-colour meshes remain ASCII too: encode the top/bottom color
+        // halves with CP437 upper-half block, rather than show smooth polygons.
+        // At silhouettes the other sample may contain an encoded material ID,
+        // not RGB. Never average those bytes into the mesh colour.
+        float ma=step(0.85,a.a),mb=step(0.85,b.a);
+        float mc=step(0.85,c.a),md=step(0.85,d.a);
+        float3 top = ma+mb>0.5 ? (a.rgb*ma+b.rgb*mb)/max(ma+mb,1.0) : selected.rgb;
+        float3 bottom = mc+md>0.5 ? (c.rgb*mc+d.rgb*md)/max(mc+md,1.0) : selected.rgb;
+        float3 gray = float3(0.2126,0.7152,0.0722);
+        top = lerp(top,float3(dot(top,gray)),0.25);
+        bottom = lerp(bottom,float3(dot(bottom,gray)),0.25);
+        top = float3(44.0,48.0,56.0)/255.0 + top*(196.0/255.0);
+        bottom = float3(44.0,48.0,56.0)/255.0 + bottom*(196.0/255.0);
+        float2 mesh_glyph=float2(15.0,13.0);
+        if (dot(abs(top-bottom),float3(1.0,1.0,1.0))<0.12) {
+            mesh_glyph=float2(0.0,11.0); top=top*0.78;
+        }
+        return part < 0.5 ? float4(top,(mesh_glyph.y*16.0+mesh_glyph.x)/255.0) : float4(bottom,0);
+    }
+    return part < 0.5 ? fg : bg;
+}
+float4 compose_cell(float4 base, float4 encoded, float2 pixel) {
+    float fg=floor(encoded.r*255.0+0.5), bg=floor(encoded.g*255.0+0.5);
+    float coverage=ascii_coverage(floor(encoded.b*255.0+0.5),pixel);
+    float3 front=fg > 253.5 ? (fg > 254.5 ? base.rgb : min(base.rgb+0.12,1.0)) : ascii_palette(fg).rgb;
+    float3 back=bg > 253.5 ? (bg > 254.5 ? base.rgb : min(base.rgb+0.12,1.0)) : ascii_palette(bg).rgb;
+    return float4(lerp(back,front,coverage),1.0);
+}
+float4 resolve_style_target(float2 uv,float4 layout) {
+    float2 cell=floor(uv*layout.xy);
+    float part=step(0.5,frac(uv.x*layout.x));
+    float2 sample_uv=(cell*2.0+2.5)/abs(layout.zw);
+    float4 a=ascii_sample(sample_uv,layout.w,0.0);
+    float4 b=ascii_sample(sample_uv+float2(1.0/abs(layout.z),0),layout.w,0.0);
+    float4 c=ascii_sample(sample_uv+float2(0,1.0/abs(layout.w)),layout.w,0.0);
+    float4 d=ascii_sample(sample_uv+1.0/abs(layout.zw),layout.w,0.0);
+    bool has_sprite=(a.a>0.25 && a.a<0.70) || (b.a>0.25 && b.a<0.70) ||
+                    (c.a>0.25 && c.a<0.70) || (d.a>0.25 && d.a<0.70);
+    float layer=has_sprite ? 1.0 : 0.0;
+    float4 base=resolve_style(uv,layout,layer,part);
+    float4 surface=ascii_sample(sample_uv,layout.w,layer);
+    if (surface.a>0.70 && surface.a<0.85) {
+        float4 reflected=resolve_style(uv,layout,2.0,part);
+        base.rgb=lerp(base.rgb,reflected.rgb,0.28);
+    }
+    return base;
+}
+float4 resolve_ascii(float2 uv,float4 layout) {
+    float2 cell=floor(uv*layout.xy),pixel=floor(frac(uv*layout.xy)*8.0);
+    float2 style_uv=(float2(cell.x*2.0,cell.y)+0.5)/float2(layout.x*2.0,layout.y);
+    if (layout.w<0.0) style_uv.y=1.0-style_uv.y;
+    float4 foreground=tex2D(styles,style_uv);
+    float4 background=tex2D(styles,style_uv+float2(0.5/layout.x,0));
+    float coverage=ascii_coverage(floor(foreground.a*255.0+0.5),pixel);
+    float4 base=float4(lerp(background.rgb,foreground.rgb,coverage),1);
+    float2 sample_uv=(cell*2.0+2.5+floor(pixel/4.0))/abs(layout.zw);
+    float4 sprite=ascii_sample(sample_uv,layout.w,0.0);
+    if (sprite.a>0.25 && sprite.a<0.70) base=compose_cell(base,sprite,pixel);
+    float4 ui=tex2D(overlay,(cell+0.5)/128.0);
+    if (ui.a>0.5) base=compose_cell(base,ui,pixel);
+    return base;
+}

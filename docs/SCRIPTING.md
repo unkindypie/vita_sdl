@@ -47,7 +47,10 @@ logged and unregistered; the affected say/item operation fails closed.
 ## Bounds and deliberate limits
 
 - Runtime allocation budget: 16 MiB; JS stack budget: 256 KiB.
-- Evaluation: 50 ms; callbacks: 5 ms, checked cooperatively by QuickJS.
+- Evaluation: 50 ms; callbacks: 5 ms, checked cooperatively by QuickJS. Trusted
+  bundled API initialization shares one total 1-second bootstrap deadline to
+  accommodate cold ARM startup. Loaded game scripts and console evaluations do
+  not receive that extended budget; teardown resets it.
   These are runaway-script protection, not hard real-time guarantees.
 - Script files/source: 64 KiB. Shared-buffer string ranges and UTF-8 truncation
   are checked; native vector/scalar setters reject NaN/infinity and magnitudes

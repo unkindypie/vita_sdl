@@ -60,7 +60,7 @@ bool load_font(const std::string& path, Font& font, std::string& error) {
                 font[glyph * 64 + y * 8 + x] = luminance[((glyph / 16) * 8 + y) * 128 + (glyph % 16) * 8 + x] >> 24;
     return true;
 }
-bool rasterize(const AnsiCell* cells, int columns, int rows, const Font& font,
+bool rasterize(const engine::Cell* cells, int columns, int rows, const Font& font,
                void* output, std::size_t pitch, std::size_t output_size) {
     if (!cells || !output || columns < 1 || columns > 160 || rows < 1 || rows > 160) return false;
     const auto row_bytes = static_cast<std::size_t>(columns) * 8 * sizeof(uint32_t);

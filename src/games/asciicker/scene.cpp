@@ -1,4 +1,4 @@
-#include "app/scene.h"
+#include "games/asciicker/scene.h"
 #include "enemygen.h"
 #include "inventory.h"
 #include "platform/engine_hooks.h"

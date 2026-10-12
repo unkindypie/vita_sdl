@@ -1,0 +1,6 @@
+uniform sampler2D terrain : register(s0);
+#include "../common/surface.cg"
+float4 main(float4 tint : COLOR, float4 info : TEXCOORD0, float height : TEXCOORD1) : COLOR {
+    clip(height);
+    return resolve_surface(tint, info);
+}

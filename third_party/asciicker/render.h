@@ -6,12 +6,11 @@
 
 #include "terrain.h"
 #include "world.h"
+#include "engine/render/cell.h"
 
-struct AnsiCell
-{
-	//		R	G	B	A
-	uint8_t fg, bk, gl, spare; // for post pass
-};
+namespace engine { class SceneBackend; }
+
+using AnsiCell = engine::Cell;
 
 struct MatCell
 {
@@ -43,14 +42,11 @@ struct Renderer;
 Renderer* CreateRenderer(uint64_t stamp);
 void DeleteRenderer(Renderer* r);
 
-// return null-terminated array of item pointers that are reachable by player
-/*
-Item** Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, 		// scene
-			float zoom, float yaw, const float pos[3], const float lt[4],	// view
-			int width, int height, AnsiCell* ptr,  // target
-			Sprite* sprite, int anim, int frame, float dir, 	// player
-			const int scene_shift[2]); // special fx
-*/
+// Borrowed backend: detach before destroying it; never owned/deleted here.
+// nullptr detaches; rendering without a backend fails explicitly. Each Renderer
+// has its own backend. Game-owned proximity selection is supplied independently.
+void SetSceneBackend(Renderer* r, engine::SceneBackend* backend);
+const char* GetSceneBackendError(const Renderer* r);
 
 void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, 		// scene
 	float zoom, float yaw, const float pos[3], const float lt[4],	// view
@@ -60,10 +56,10 @@ void Render(Renderer* r, uint64_t stamp, Terrain* t, World* w, float water, 		//
 	bool perspective);
 
 bool ProjectCoords(Renderer* r, const float pos[3], int view[3]); // like a sprite!
-bool UnprojectCoords2D(Renderer* r, const int xy[2], float pos[3]); // reads height from buffer first!
-bool UnprojectCoords3D(Renderer* r, const int xy[3], float pos[3]); // reads height from buffer first!
+bool UnprojectCoords2D(Renderer* r, const int xy[2], float pos[3]); // collision ray, no depth readback
+bool UnprojectCoords3D(Renderer* r, const int xy[3], float pos[3]); // caller-supplied world height
 
 Item** GetNearbyItems(Renderer* r);
 Inst** GetNearbyCharacters(Renderer* r);
-
-extern int render_break_point[2];
+void SetNearbyInteractions(Renderer* r, Item* const* items, int item_count,
+                           Inst* const* characters, int character_count);

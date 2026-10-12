@@ -1,0 +1,7 @@
+float4 resolve_surface(float4 tint, float4 surface) {
+    if (surface.w > 1.5) return tint;
+    if (surface.w < 0.5) return tint;
+    float4 data = tex2D(terrain,surface.xy);
+    float light = surface.z * (1.0 - data.g * 0.35);
+    return float4(data.r, floor(clamp(light,0.0,1.0)*15.0+0.5)/255.0, (16.0 + floor(data.b*255.0+0.5))/255.0, 0.0);
+}

@@ -5,11 +5,15 @@ show-welcome: false
 # Suppresses the notice only, not a firmware installation or compatibility fix.
 warn-missing-firmware: false
 backend-renderer: OpenGL
+v-sync: @EMULATOR_HOST_VSYNC@
 # Gently smooth the final display without changing ASCII glyph coverage.
 screen-filter: Bilinear
 hashless-texture-cache: false
-texture-cache: false
+# Multi-sampler shaders require distinct texture objects in this pinned build.
+texture-cache: true
 memory-mapping: disabled
+# Enable only for explicit GPU readback diagnostics, not performance runs.
+disable-surface-sync: @DISABLE_SURFACE_SYNC@
 pref-path: "@PREF_PATH@"
 log-level: 2
 discord-rich-presence: false

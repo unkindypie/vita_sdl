@@ -1541,8 +1541,10 @@ struct World
                 }
             }
 
-            free(arr);
         }
+        // PORTABLE_SDL: scratch storage exists even if no instance uses the
+        // tree. Small reusable-engine scenes must not leak this allocation.
+        free(arr);
     }
 
 	static Inst* HitWorld0(BSP* q, double ray[10], double ret[3], double nrm[3], bool positive_only, bool editor, bool solid_only, bool sprites_too)

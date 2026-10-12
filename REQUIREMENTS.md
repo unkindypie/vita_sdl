@@ -4,13 +4,18 @@ Status: offline runtime version 0.3, 2026-10-10. All offline-port phases are now
 authorized, superseding the Phase 2 stopping point and voice-training direction.
 See `PORTING_PLAN.md` and `docs/PARITY.md`.
 
+GPU rewrite authorized 2026-10-11 after the user's physical-Vita 2–3 FPS report.
+Active staged execution is tracked in `GPU_REWRITE_PLAN.md`. The additional
+on-device shader compiler prerequisite is authorized; hardware acceptance is
+now essential for the performance objective, not replaceable by emulator FPS.
+
 ## Required behavior
 
 - **PORT-001:** Shared C++17 runtime through Docker/Make/CMake; separate Linux
   and Vita cross-compiled output, pinned source/toolchain inputs.
 - **PORT-002:** Preserve physics, terrain/world formats, sprites and ASCII-cell
-  semantics rather than substituting a screenshot. Retain the CPU rendering
-  reference while evaluating the newly authorized GPU migration.
+  semantics rather than substituting a screenshot. Maintain a single GPU scene
+  implementation; no legacy CPU rasterizer or hidden fallback.
 - **PORT-003:** Load real `game_map_y8.a3d`, meshes and sprites.
 - **PORT-004:** 120x68 cells, upstream 8x8 CP437 font/palette, 960x544 baseline;
   intentional desktop letterboxing and readable state/controls.
@@ -39,6 +44,19 @@ See `PORTING_PLAN.md` and `docs/PARITY.md`.
   Continue resumes the current world, not a nonexistent upstream campaign save.
 - **PORT-015:** Explicit combat/inventory/menu/audio/script evidence on Linux
   and actual ARM code in Vita3K, not inferred from linking or one screenshot.
+- **GPU-001:** Native GPU geometry/depth/lighting/material/ASCII/water/sprite
+  rendering, not only GPU glyph expansion. CPU simulation/UI remain independent.
+- **GPU-002:** Reusable engine contracts independent of game rules, SDL and
+  Vita headers; game-specific world formats and rules live behind adapters.
+- **GPU-003:** Render once per snapshot without advancing simulation/scripts;
+  collision/picking/proximity must not require GPU scene/depth readback.
+- **GPU-004:** Probe/document shader prerequisites; fail visibly on missing
+  compiler or shader/pass errors. No bundled proprietary compiler module.
+- **GPU-005:** Preserve offline gameplay parity and the material-driven ASCII
+  style/pastel grading. Explicitly record intentional visual differences.
+- **GPU-006:** Target sustained >=30 FPS on real Vita, JS/audio enabled, matched
+  representative routes and bounded memory; report median/p95 and device clocks.
+  Keep this criterion pending until measured on hardware.
 
 ## Acceptance and evidence
 

@@ -4,8 +4,9 @@
 
 This repository ports Asciicker's C++17 game runtime to SDL2 on Linux and PS
 Vita. Keep one shared codebase. Linux is the development and automated-test
-target; Vita is the cross-compilation and packaging target. Follow
-`PORTING_PLAN.md` and stop at the phase authorized by the user.
+target; Vita is the cross-compilation and packaging target. The active staged
+GPU rewrite is in `GPU_REWRITE_PLAN.md`; `PORTING_PLAN.md` records the earlier
+offline port. Follow the current authorization and record each stage's evidence.
 
 ## Repository map
 
@@ -19,7 +20,9 @@ target; Vita is the cross-compilation and packaging target. Follow
 - `tests/`: host-side unit and integration tests, mirroring source areas.
 - `assets/`: pinned upstream maps, meshes, sprites, palette, and CP437 font.
 - `third_party/`: vendored engine/QuickJS and revision/local-patch records.
-- `src/app/`: scene ownership and launcher integration.
+- `src/app/`: launcher integration and parity diagnostics.
+- `src/engine/`: game-independent engine contracts/services; no Asciicker headers.
+- `src/games/asciicker/`: Asciicker-specific loading/ownership and adapters.
 - `src/ui/`: platform-independent ASCII-cell presentation.
 - `src/platform/`: SDL input mapping and engine platform hooks.
 - `src/scripting/`: bounded QuickJS runtime, upstream `ak` bridge, feature probe.
@@ -45,8 +48,23 @@ make verify-vpk   # Build and verify packaged manifest entries
 make vita3k-setup # Download/check pinned host emulator under build/tools/
 make vita3k       # Automatically set up emulator, build/run Vita binary
 make vita3k-smoke # Finite guest smoke with raw stage logs and BMP capture
+make vita3k-gpu-test # Native depth/display/world/ASCII checks; compiler prerequisite
 make clean        # Remove generated build output
 ```
+
+`--probe-gpu` is an explicit startup-only native Vita compiler diagnostic,
+not the GPU scene renderer. It requires `ur0:data/libshacccg.suprx` on the Vita
+or in the selected Vita3K profile. Normal Vita GPU gameplay also requires it;
+weak imports make a missing compiler fail visibly. Never mistake a successful GXP
+program check for a rendered-image or hardware-performance test.
+
+`--gpu-fixture` without assets checks real GPU depth, rotation, target/display
+orientation and transactional recreation. With `--assets DIR`, it uploads and
+draws terrain/meshes and checks material-driven ASCII without the CPU scene renderer. These diagnostics are not
+the playable GPU game. Vita3K readback diagnostics require
+`VITA3K_SURFACE_SYNC=ON`; keep that out of performance baselines. Create and
+validate replacement targets before destroying the active target. Native GXM
+runtime/shader storage outlives devices, patchers, queues and mapped memory.
 
 - Prefer adding a documented Make target over requiring contributors to
   remember a long Docker command.
@@ -58,7 +76,10 @@ make clean        # Remove generated build output
   floating, record the reason and verify both targets after changing it.
 - Do not commit generated binaries, CMake state, VPKs, logs, or debug screenshots.
 - Use the pinned upstream SDL2 GXM build in the Vita container; do not silently
-  revert to the SDK image's VitaGL SDL2 package or add shader-runtime requirements.
+  revert to the SDK image's VitaGL SDL2 package. The user now authorizes a
+  separately installed shader compiler for the native GPU rewrite. Document
+  and probe prerequisites before enabling it; never bundle/extract proprietary
+  modules or take over SDL's private GXM context.
 - Keep source acquisition out of normal CMake builds. Container setup can fetch
   checksum-pinned inputs. Record dependency updates in `third_party/README.md`.
 
@@ -82,6 +103,11 @@ from the Vita cross-compiled target. Never assume success on Linux proves Vita
 API availability or runtime behavior.
 
 ## C++ and SDL style
+
+- Keep shader sources under `shaders/`, using `.glsl` for OpenGL and `.cg` for
+  native GXM/shared Cg-compatible functions. Do not embed shader source strings
+  in C++ headers or implementation files. CMake expands local shader includes
+  and embeds the sources into a generated header; edits must trigger rebuilds.
 
 - Use standard C++17 and VitaSDK-compatible standard library facilities.
   `std::span` is C++20 and must not be used with this project's C++17 baseline.
@@ -118,11 +144,28 @@ API availability or runtime behavior.
   the frontend boundary when changing emulator launch settings.
 - Offline gameplay, audio, QuickJS bindings and measured GPU rendering
   prototypes are in scope. Networking, editor and campaign persistence are not.
-  Keep the CPU renderer/reference while GPU parity and end-to-end performance
-  are evaluated. Never label GPU glyph expansion as a GPU scene renderer.
+  The user requests one clean GPU rendering implementation, not permanent CPU
+  fallback support. The CPU rasterizer and glyph-only SDL experiment are removed;
+  do not restore them or their obsolete switches/tests. Never run a hidden CPU scene pass or
+  label GPU glyph expansion as a GPU scene renderer.
+- ASCII is a required art direction, not an optional postprocessing mode.
+  Preserve CP437, material glyph/foreground/background tables and pastel
+  grading. Smooth geometry is diagnostic only. Keep terrain/material/font
+  textures point-sampled; any output softening must not blend material IDs.
+- Engine headers/targets must not depend on game rules, world formats, SDL or
+  native GPU headers. Put Asciicker translation in game adapters and native
+  graphics in platform backends. A renamed folder is not proof of decoupling.
+- Render backends are per-instance and borrowed by the legacy bridge; detach
+  before destroying backend/resources. Rendering must not advance simulation
+  or scripts. No hidden CPU scene pass/readback under a selected GPU backend.
+- Physical Vita currently reports 2–3 FPS. Target >=30 FPS with complete
+  gameplay, but require measured hardware evidence before declaring success.
 - Keep the official QuickJS 2026-06-04 snapshot pinned on both targets. Preserve
   shared-buffer offsets, UTF-8 boundaries, script limits, and callback teardown.
   Run scripts only on the game thread; do not expose host filesystem or shells.
+  Trusted API bootstrap shares a bounded 1-second startup deadline; loaded game
+  scripts/console retain 50 ms and callbacks retain 5 ms. Do not expand those
+  live budgets to conceal a performance regression or emulator contention.
 - Audio callbacks must not allocate, log, read files, or take locks. Decode
   samples before unpausing the device; close/join it before resetting mixer data.
   Keep the command queue bounded and report dropped commands outside callbacks.

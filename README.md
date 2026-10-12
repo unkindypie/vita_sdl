@@ -2,11 +2,25 @@
 
 A shared C++17/SDL2 port of Asciicker's offline game runtime. Version 0.3
 loads the real upstream map and renders its terrain, sprites, and characters
-through the original CPU ASCII renderer with an SDL2 streaming-texture presenter.
+through a dedicated OpenGL (Linux) / native GXM (Vita) GPU ASCII renderer.
 It supports movement, camera, collision, combat, inventory, menus, SDL audio,
 and the upstream JavaScript `ak` API through QuickJS **2026-06-04**. Offline
 parity is exercised on Linux and in the ARM/Vita binary through Vita3K. This
 is a port of the upstream sandbox, not a new campaign or multiplayer game.
+
+The physical-Vita GPU rewrite and modular engine extraction are tracked in
+[`GPU_REWRITE_PLAN.md`](GPU_REWRITE_PLAN.md). Stage 1 provides rendering
+contracts/dispatch; Stage 2 adds independent OpenGL/GXM geometry and display
+ownership. The real-world GPU diagnostic uploads all 4,876 patches and 15 mesh
+resources once (1,083 shared mesh instances), with GPU lighting and a
+material-driven CP437/pastel ASCII resolve. It also checks real material/font
+lookup pixels on both backends. Playable GPU integration preserves offline
+gameplay, sprites, water, independent UI and New Game. See
+[`GPU geometry diagnostics`](docs/GPU_GEOMETRY.md). The explicit
+`--probe-gpu` diagnostic checks the separately installed Vita shader compiler;
+see [`engine boundaries`](docs/ENGINE_ARCHITECTURE.md). Native gameplay requires
+`ur0:data/libshacccg.suprx`; it is not bundled. No hardware FPS improvement is
+claimed until measured on a real Vita.
 
 ## Build and run
 
@@ -33,9 +47,8 @@ Q/E rotates, X attacks, C jumps, Enter opens inventory, and Right Shift opens
 the menu. Mouse input emulates Vita touch. See [emulator controls and timed
 performance checks](docs/VITA3K.md#interactive-play-and-manual-performance-checks).
 
-Experimental GPU glyph rendering: `make vita3k VITA3K_ARGS='--gpu-presenter'`.
-The CPU scene pass remains; this prototype has not established an FPS gain and
-is not the default. See [GPU migration status and tests](docs/GPU_RENDERING.md).
+GPU scene rendering is the sole normal path; the old CPU rasterizer and SDL
+glyph-only experiment were removed. See [GPU rendering](docs/GPU_RENDERING.md).
 
 Non-destructive fresh build checks:
 
@@ -52,7 +65,7 @@ make run ARGS='--probe-js'
 make run ARGS='--smoke --frames 600 --verify-gameplay'
 make run ARGS='--script assets/scripts/startup.js'
 make run ARGS='--smoke --seconds 900'
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/linux/vita_sdl2 --smoke --frames 240
+SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 SDL_AUDIODRIVER=dummy build/linux/vita_sdl2 --smoke --frames 240
 ```
 
 Use `--assets DIR` and `--manifest FILE` to override assets. Default Linux paths
@@ -62,7 +75,8 @@ for bundled data and `ux0:data/asciicker/` for configuration and logs.
 
 The Vita container explicitly builds upstream SDL2 2.32.10 with its native GXM
 backend instead of the SDK image's bundled VitaGL SDL2 variant. There is no
-runtime VitaGL shader-compiler dependency. Install the VPK through VitaShell or
+VitaGL dependency. The dedicated GXM renderer does require the separately
+installed Sony shader compiler module above. Install the VPK through VitaShell or
 another homebrew installer. Runtime behavior on real Vita remains unverified in
 this implementation pass; Linux validation substitutes were requested.
 Vita3K smoke passes using the documented OpenGL/no-hashless-cache configuration;
@@ -92,5 +106,12 @@ Select+Start opens the controller text keyboard. See [controls](docs/CONTROLS.md
 
 Upstream: https://github.com/msokalski/asciicker. Preserve its MIT notice and
 embedded third-party notices when distributing source/binaries. The VPK contains
-an original icon and license/provenance notices. Real-device acceptance and
+a user-supplied photo icon and license/provenance notices. Real-device acceptance and
 independent asset-rights clearance are not established by emulator tests.
+
+## Playable GPU migration
+
+The native-GXM/OpenGL scene renderer launches with `make run`.
+Shader sources live under `shaders/` as `.glsl`
+and `.cg` files. See [GPU rendering](docs/GPU_RENDERING.md) and
+[the rewrite plan](GPU_REWRITE_PLAN.md) for prerequisites and remaining gates.

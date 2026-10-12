@@ -19,6 +19,8 @@ alignas(8) std::array<uint8_t, AKAPI_BUF_SIZE> buffer{};
 port::ScriptStats stats;
 using Clock = std::chrono::steady_clock;
 Clock::time_point deadline;
+Clock::time_point bootstrap_deadline;
+bool bootstrapping = false;
 int interrupt(JSRuntime*, void*) { return Clock::now() > deadline; }
 void no_free(JSRuntime*, void*, void*) {}
 std::string exception_text() {
@@ -93,7 +95,9 @@ bool eval_script(const std::string& source, bool root, std::string& result) {
     if (source.size() > 65536) { result = "Script exceeds 64 KiB limit"; return false; }
     const std::string code = root ? source : "(function(ak,akPrint){" + source + "\n}).apply(akAPI_This,[ak,akPrint])";
     const auto start = Clock::now();
-    deadline = start + std::chrono::milliseconds(50);
+    // Trusted bundled API initialization shares one bounded startup budget.
+    // Cold ARM/JIT startup must not consume the interactive console's budget.
+    deadline = bootstrapping ? bootstrap_deadline : start + std::chrono::milliseconds(50);
     JS_UpdateStackTop(runtime);
     JSValue value = JS_Eval(context, code.c_str(), code.size(), root ? "bootstrap.js" : "console.js", JS_EVAL_TYPE_GLOBAL);
     bool ok = !JS_IsException(value);
@@ -111,14 +115,16 @@ bool eval_script(const std::string& source, bool root, std::string& result) {
 }
 bool start_scripting(std::string& error) {
     stop_scripting();
+    bootstrapping = true;
+    bootstrap_deadline = Clock::now() + std::chrono::seconds(1);
     buffer.fill(0);
     stats = {};
     runtime = JS_NewRuntime();
-    if (!runtime) { error = "QuickJS allocation failed"; return false; }
+    if (!runtime) { error = "QuickJS allocation failed"; bootstrapping = false; return false; }
     JS_SetMemoryLimit(runtime, 16 * 1024 * 1024);
     JS_SetMaxStackSize(runtime, 256 * 1024);
     JS_SetInterruptHandler(runtime, interrupt, nullptr);
-    deadline = Clock::now() + std::chrono::seconds(1);
+    deadline = bootstrap_deadline;
     context = JS_NewContext(runtime);
     if (!context) { error = "QuickJS context failed"; stop_scripting(); return false; }
     akAPI_Buff = buffer.data();
@@ -134,10 +140,12 @@ bool start_scripting(std::string& error) {
     }
     akAPI_Init();
     if (stats.errors) { error = "Upstream ak bootstrap failed"; stop_scripting(); return false; }
-    log_stage("SCRIPT_READY QuickJS 2026-06-04 memory_limit=16MiB eval_limit=50ms callback_limit=5ms");
+    bootstrapping = false;
+    log_stage("SCRIPT_READY QuickJS 2026-06-04 memory_limit=16MiB bootstrap_limit=1000ms eval_limit=50ms callback_limit=5ms");
     return true;
 }
 void stop_scripting() {
+    bootstrapping = false;
     if (context) JS_FreeContext(context);
     if (runtime) JS_FreeRuntime(runtime);
     context = nullptr; runtime = nullptr; akAPI_Buff = nullptr;

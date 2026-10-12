@@ -1,5 +1,5 @@
 #pragma once
-#include "render.h"
+#include "engine/render/cell.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -11,6 +11,6 @@ uint32_t palette_color(uint8_t index);
 // Presentation-only pastel grading; engine material/light indices stay intact.
 uint32_t display_color(uint8_t index);
 bool load_font(const std::string& path, Font& font, std::string& error);
-bool rasterize(const AnsiCell* cells, int columns, int rows, const Font& font,
+bool rasterize(const engine::Cell* cells, int columns, int rows, const Font& font,
                void* output, std::size_t pitch, std::size_t output_size);
 }

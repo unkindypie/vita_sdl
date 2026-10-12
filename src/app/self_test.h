@@ -6,6 +6,7 @@
 #include "game.h"
 #include "platform.h"
 #include "platform/engine_hooks.h"
+#include "games/asciicker/projectiles.h"
 #include "mainmenu.h"
 #include <cmath>
 extern World* world;
@@ -214,6 +215,15 @@ inline void gameplay_checks(const std::string& root) {
     game->OnPadButton(0,true); game->OnPadButton(0,false);
     game->Render(game->stamp + 16667, combat_frame.data(),120,68);
     check(game->player.shooting && game->player.shoot_stamp>0 && std::isfinite(game->player.shoot_to[2]),"controller fires real crossbow projectile");
+    // Hit resolution must not depend on scene rasterization or replay count.
+    game->player.shoot_target = enemy;
+    std::copy_n(game->player.shoot_from,3,game->player.shoot_to);
+    const auto projectile_time = game->player.shoot_stamp+100000;
+    port::asciicker::advance_projectiles(projectile_time);
+    check(!game->player.shooting && !game->player.shoot_target,"projectile resolves without a render");
+    const int resolved_hp = enemy->HP;
+    port::asciicker::advance_projectiles(projectile_time);
+    check(enemy->HP == resolved_hp,"projectile damage is applied only once");
     float restore[3] = {old_pos[0], old_pos[1], old_pos[2]};
     SetPhysicsPos(game->physics, restore, nullptr);
     game->player.SetActionNone(game->stamp);

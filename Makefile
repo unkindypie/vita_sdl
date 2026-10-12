@@ -14,15 +14,18 @@ VITA3K_DIR ?= build/vita3k
 VITA3K_FRONTEND ?= qt
 # Vita3K separates guest arguments with comma + space, not ordinary spaces.
 VITA3K_ARGS ?=
+VITA3K_SMOKE_VIDEO_DRIVER ?=
+VITA3K_HOST_VSYNC ?= $(if $(filter sdl,$(VITA3K_FRONTEND)),OFF,ON)
+VITA3K_SURFACE_SYNC ?= OFF
 
-.PHONY: help linux run test gpu-test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
+.PHONY: help linux run test gpu-test test-in-container test-asan smoke verify-vpk vita vita3k-setup vita3k vita3k-smoke vita3k-gpu-test docker-image linux-docker-image prepare-linux-build prepare-vita-build linux-in-container vita-in-container clean
 
 help:
 	@printf '%s\n' \
 	  'make linux        Build the Linux test executable in Docker' \
 	  'make run          Build in Docker and run the executable on the host' \
 	  'make test         Headless unit, integration, and launch tests in Docker' \
-	  'make gpu-test     Host accelerated glyph-vs-reference readback test (desktop required)' \
+	  'make gpu-test     Host GPU depth/display and material-driven ASCII checks' \
 	  'make test-asan    Run headless tests with AddressSanitizer' \
 	  'make smoke        Launch on the host, exercise movement/camera, save a BMP' \
 	  'make docker-image Build the local VitaSDK development image' \
@@ -32,6 +35,7 @@ help:
 	  'make vita3k-setup Download/check the pinned Linux x86_64 emulator' \
 	  'make vita3k       Set up Vita3K, build and launch the Vita app' \
 	  'make vita3k-smoke Run 600-frame guest movement/camera smoke in Vita3K' \
+	  'make vita3k-gpu-test Native GPU geometry/display and world ASCII diagnostics' \
 	  'make clean        Remove all generated files'
 
 
@@ -61,7 +65,8 @@ test: linux
 	  --workdir /workspace $(LINUX_DOCKER_IMAGE) make test-in-container LINUX_BUILD_DIR=$(LINUX_BUILD_DIR)
 
 gpu-test: linux
-	$(LINUX_BUILD_DIR)/gpu_presenter_tests "$(CURDIR)/assets" --accelerated
+	$(LINUX_BUILD_DIR)/$(PROJECT) --gpu-fixture --frames 120 --screenshot $(LINUX_BUILD_DIR)/gpu-fixture.bmp
+	$(LINUX_BUILD_DIR)/$(PROJECT) --gpu-fixture --assets assets --frames 120 --screenshot $(LINUX_BUILD_DIR)/gpu-world.bmp
 
 test-asan:
 	$(MAKE) test LINUX_BUILD_DIR=build/linux-asan CMAKE_ARGS=-DPORT_SANITIZE=ON
@@ -107,14 +112,18 @@ vita3k: vita3k-setup
 	docker run --rm --user "$(HOST_UID):$(HOST_GID)" --volume "$(CURDIR):/workspace" \
 	  --workdir /workspace $(DOCKER_IMAGE) cmake \
 	  -DOUTPUT=/workspace/$(VITA3K_DIR)/config.yml \
-	  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -P cmake/prepare_vita3k.cmake
+  -DPREF_PATH="$(CURDIR)/$(VITA3K_DIR)/storage/" -DSURFACE_SYNC=$(VITA3K_SURFACE_SYNC) -DHOST_VSYNC=$(VITA3K_HOST_VSYNC) -P cmake/prepare_vita3k.cmake
 # In this emulator build --console skips Qt's SDL audio/controller init.
-	"$(VITA3K)" --frontend "$(VITA3K_FRONTEND)" $(if $(filter sdl,$(VITA3K_FRONTEND)),--console,) --load-config \
+	$(if $(VITA3K_SMOKE_VIDEO_DRIVER),env SDL_VIDEODRIVER="$(VITA3K_SMOKE_VIDEO_DRIVER)",) "$(VITA3K)" --frontend "$(VITA3K_FRONTEND)" $(if $(filter sdl,$(VITA3K_FRONTEND)),--console,) --load-config \
 	  --config-location "$(CURDIR)/$(VITA3K_DIR)/config.yml" --keep-config \
 	  --app-args '$(VITA3K_ARGS)' "$(CURDIR)/$(VITA_BUILD_DIR)/$(PROJECT).vpk"
 
 vita3k-smoke:
-	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
+	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--smoke, --frames, 600, --verify-gameplay, --screenshot, ux0:data/asciicker/vita3k.bmp'
+
+vita3k-gpu-test:
+	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--gpu-fixture, --frames, 120, --screenshot, ux0:data/asciicker/gpu-fixture.bmp'
+	$(MAKE) vita3k VITA3K_FRONTEND=sdl VITA3K_SURFACE_SYNC=ON VITA3K_ARGS='--gpu-fixture, --assets, app0:assets, --frames, 120, --screenshot, ux0:data/asciicker/gpu-world.bmp'
 
 clean:
 	$(RM) -r $(BUILD_DIR)

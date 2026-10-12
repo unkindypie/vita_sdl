@@ -1,0 +1,5 @@
+#pragma once
+// Generated from shaders/. Edit the shader sources, never this header.
+namespace port::graphics::shaders {
+@SHADER_SOURCES@
+}

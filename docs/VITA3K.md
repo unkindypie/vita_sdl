@@ -78,8 +78,12 @@ The project config sets `warn-missing-firmware: false` to suppress the repeated
 Qt firmware/font-package popup for this homebrew. This only hides the warning;
 it does not install those packages or make other games firmware-independent.
 
-The pin is official build **4154-b75d5e62**, release asset **625596737**,
-SHA-256 `ec24d71a6c75db3eb1a03ceef20ca0f241cac59f28669dd5315172713c054d35`.
+The pin is official build **4168-46602447**, release asset **630853783**,
+SHA-256 `ad62f00603cfcfa2412077a5280510b4f0e450583b592191225717bf3cca0c74`.
+Validated with native GXM world/material/composition/atlas-update fixtures and
+600-frame gameplay parity/reset. Official continuous assets can be removed by
+upstream; if this pin disappears, update ID and hash together after validation,
+or use an existing checked binary through `VITA3K`. Never silently fetch latest.
 `tools/setup_vita3k.sh` uses the asset ID rather than the mutable `continuous`
 download name. If upstream removes that asset, setup fails explicitly rather
 than silently taking a different build. Update ID/checksum together and rerun
@@ -94,8 +98,8 @@ then `SHUTDOWN_OK`, to:
 
 `build/vita3k/storage/ux0/data/asciicker/stages.log`
 
-The framebuffer capture is alongside it as `vita3k.bmp`. This is the application's
-CPU framebuffer, not a capture of the emulator window. The stage log also
+The framebuffer capture is alongside it as `vita3k.bmp`. This is an explicit GPU
+display-target readback, not a capture of the emulator window. The stage log also
 records successful presentation and progress. Logs append across launches;
 inspect the latest boot section. Emulator exit status alone is not proof of a
 successful guest smoke. An early exit or `SMOKE_FAIL` needs investigation.
@@ -112,13 +116,14 @@ Validated with Linux Vita3K **0.2.1 / 4154-b75d5e62** on AMD Radeon Graphics:
 
 - OpenGL backend.
 - Bilinear display filtering for softer scaled ASCII edges.
-- Hashless texture cache off; texture cache off.
+- Hashless texture cache off; ordinary texture cache on (required for distinct
+  scene/material/font samplers in the native GPU renderer).
 - Memory mapping disabled.
 
 The template in `cmake/vita3k.yml.in` generates these settings. Do not override
 them with Vulkan without rechecking runtime behavior. This changes only the
-emulator's host graphics backend; the Vita app still uses SDL2's native GXM
-renderer and the engine still renders the scene on the CPU.
+emulator's host graphics backend; the Vita app uses its dedicated native GXM
+scene renderer, independent of SDL's private graphics state.
 
 The failed Vulkan runs attempted to write into read-only cached texture pages
 through the emulator's `sceClibMemcpy` HLE, producing repeated host SIGSEGVs.

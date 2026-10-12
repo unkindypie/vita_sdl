@@ -4,10 +4,22 @@ These are checked-in snapshots. Application builds never download engine or
 JavaScript sources. Update deliberately and rerun Linux tests and both builds.
 
 The optional host emulator is not vendored: `make vita3k-setup` downloads the
-checksum-pinned official Vita3K 4154-b75d5e62 Linux x86_64 release into ignored
+checksum-pinned official Vita3K 4168-46602447 Linux x86_64 release into ignored
 `build/tools/`. Its asset ID/hash and host requirements are documented in
 [`docs/VITA3K.md`](../docs/VITA3K.md); update the pin only after a guest smoke.
 The official archive retains its upstream license and resources.
+
+2026-10-11: the old 4154 asset disappeared upstream. Replacement official asset
+630853783 was checked against GitHub's SHA-256 and validated with native GXM
+world/ASCII/composition/dirty-atlas and 600-frame gameplay parity/reset checks.
+The old cached `b75d5e62` results remain historical evidence only.
+
+The startup-only Vita shader probe uses the public SceShaccCg API and weak
+compiler stubs already in the digest-pinned VitaSDK image. No additional
+vitaGL/vitaShaRK/extension code is linked and no proprietary compiler is bundled.
+`libshacccg.suprx` must be separately supplied on the device/emulator for this
+probe and normal native GPU play. Missing-module behavior fails visibly without
+trying to restore the removed software renderer.
 
 ## Asciicker
 
@@ -17,7 +29,12 @@ The official archive retains its upstream license and resources.
 - Upstream MIT notice: `asciicker/LICENSE`. Embedded uPNG/tinfl notices remain
   in their source files. Asset-specific attribution review is still required
   before a public release; this is a development preview.
-- Local patches: `game.cpp` routes menu exit through portable cleanup, refreshes
+- Local patches: `game.cpp` routes menu exit through portable cleanup, advances
+  projectile damage and proximity selection independently of rasterization and
+  records blood-material dirty patches for bounded GPU atlas updates. The old
+  `render.cpp` CPU rasterizer is removed; `src/games/asciicker/render_bridge.cpp`
+  delegates scene/camera/picking through a borrowed per-renderer GPU backend.
+  `game.cpp` also refreshes
   item prototype sprite pointers on reload, and delegates validated settings to
   `src/platform/config.cpp`. Portable menus hide unsupported fixed-grid zoom and
   Vita fullscreen, expose useful controls/credits, resume the loaded world and
@@ -28,11 +45,10 @@ The official archive retains its upstream license and resources.
   plus terminates bounded player names. `stb_vorbis.cpp` includes Vita alloca.h.
 - Excluded from compilation: desktop launcher/editor, GL/terminal/X11 backends,
   V8 bindings, network/server implementations, and desktop-specific audio.
-- `render.cpp` replaces integer-result floor calls with the tested
-  `src/ui/raster_math.h` truncation/correction helper. It retains float/double
-  input precision and exact floor semantics for the renderer's finite int-range
-  coordinates/colors while avoiding ARM newlib floor calls. No geometry or
-  shading quality reduction is involved.
+- `render.h` aliases `AnsiCell` to the shared four-byte engine cell type and
+  retains the small upstream compatibility API. A missing backend is an explicit
+  error, not a CPU fallback. Rendering dispatch never reruns gameplay simulation.
+  See `docs/ENGINE_ARCHITECTURE.md` for ownership and interaction-query boundaries.
 
 ## QuickJS
 
@@ -63,3 +79,22 @@ The official archive retains its upstream license and resources.
   CMake application compilation uses only installed/vendored dependencies.
 - Image digests/archive hash pin source inputs, not every Fedora package
   revision: Linux dnf packages still come from the Fedora repositories.
+# GPU geometry dependency note (2026-10-11)
+
+Native geometry uses the existing digest-pinned VitaSDK GXM and public
+SceShaccCg weak stubs directly; no VitaGL/vitaShaRK dependency was added.
+The separately installed compiler is never included in build inputs or the
+VPK. The explicit local download source/checksum and success-path tests are
+recorded in `docs/VALIDATION.md`.
+
+Linux GPU tests add Fedora Mesa EGL/GL/software-driver packages to the existing
+release/digest-pinned Linux container. These distro packages intentionally follow
+Fedora 42 updates, as existing compiler/SDL packages do; both target builds and
+accelerated/headless checks are required after dependency changes. GL entry
+points are resolved through SDL, so the host executable does not acquire an
+undeclared direct GL link dependency.
+
+Additional local world patch: `World::Rebuild` frees its temporary BSP array
+even when all instances omit `INST_USE_TREE`. The reusable small-scene mesh
+test exposed a 32-byte leak under ASan; moving the existing free out of the
+nonempty-tree branch fixes it without changing world traversal or ownership.

@@ -5,9 +5,12 @@ file(READ "${OUTPUT}" config)
 foreach(required IN ITEMS
     "pref-path: \"${PREF_PATH}\""
     "backend-renderer: OpenGL"
+    "v-sync: true"
     "screen-filter: Bilinear"
     "warn-missing-firmware: false"
     "hashless-texture-cache: false"
+    "texture-cache: true"
+    "disable-surface-sync: true"
     "keyboard-leftstick-up: KeyW"
     "keyboard-leftstick-left: KeyA"
     "keyboard-leftstick-down: KeyS"
@@ -25,3 +28,15 @@ foreach(required IN ITEMS
     message(FATAL_ERROR "Missing emulator configuration: ${required}")
   endif()
 endforeach()
+set(SURFACE_SYNC ON)
+set(HOST_VSYNC OFF)
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/prepare_vita3k.cmake")
+file(READ "${OUTPUT}" config)
+string(FIND "${config}" "disable-surface-sync: false" found)
+if(found EQUAL -1)
+  message(FATAL_ERROR "GPU diagnostics require explicit surface synchronization")
+endif()
+string(FIND "${config}" "v-sync: false" found)
+if(found EQUAL -1)
+  message(FATAL_ERROR "Finite smoke must permit disabling host swap waits")
+endif()
